@@ -1,0 +1,55 @@
+global:
+  datacenter: "dc1"
+  name: consul
+  domain: consul
+  secretsBackend:
+    vault:
+      enabled: true
+      consulServerRole: consul-server
+      consulClientRole: consul-client
+      consulCARole: consul-ca
+      connectCA:
+        address: http://vault.vault.svc.cluster.local:8200
+        rootPKIPath: connect-root/
+        intermediatePKIPath: connect-intermediate-dc1/
+        additionalConfig: "{\"connect\": [{ \"ca_config\": [{ \"namespace\": \"admin\"}]}]}"
+      agentAnnotations: |
+        "vault.hashicorp.com/namespace": "admin"
+  tls:
+    enabled: true
+    enableAutoEncrypt: true
+    caCert:
+      secretName: "pki/cert/ca"
+  federation:
+    enabled: false
+    createFederationSecret: false
+  acls:
+    manageSystemACLs: false
+  gossipEncryption:
+    secretName: consul/data/secret/gossip
+    secretKey: gossip
+
+server:
+  replicas: 1
+  exposeGossipAndRPCPorts: true
+  serverCert:
+    secretName: "pki/issue/consul-server"
+
+connectInject:
+  replicas: 1
+  enabled: true
+  transparentProxy:
+    defaultEnabled: true
+
+controller:
+  enabled: true
+
+meshGateway:
+  enabled: false
+  replicas: 1
+
+syncCatalog:
+  enabled: true
+  consulNamespaces:
+    mirroringK8S: true
+  k8sDenyNamespaces: ["kube-system", "kube-public", "consul"]

@@ -1,0 +1,16 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixPluginConfig
+metadata:
+  name: oidc-admin
+  namespace: consul
+spec:
+  plugins:
+    - name: openid-connect
+      enable: true
+      config:
+        client_id: "7KxXrJi2L9eWoE60AxxPtKbcIVM86gP6"
+        client_secret: "hvo_secret_J58HYJmBn0kirl1ja82KEeW6E7y50LrDFl7T0yvLcpVfc36wBtuPbcY7XQWrHUaL"
+        discovery: "http://vault.vault.svc.cluster.local:8200/v1/identity/oidc/provider/vault/.well-known/openid-configuration"
+        redirect_uri: "https://dev.localhost/oidc/callback"
+        realm: apisix
+        public_key: "qdBFAJOVkWEB-a03gTYu3j8jxUtA82YDq6zDF7vo3r_PvdPZZ1Rpi5spUvMLebCj3AGugo9No37FgVIqxZRS9OtZJidelgjIMYbnpGtxyy36GM4JMv_0Q1VXJjHMaMwl27Ia3_ZM8MQHLgr9xfwGCWs1iIIbOCgFK8akTE7fQNy8LHNSybEcgDMypY6_977IfBiCwiiBGP6mDLXX9WgI4R-60ywSYXuc--x8pAc3iLASllL4p2oXon-7awsmAq5ckiWWDaKQMhyuiEa5I-uYLVN_zPanJ7__KVVhQ9anrYrmKCLXg9HWHQBws62Cz8lQdxoMOABfqPA4kxtrl6IwtQ"

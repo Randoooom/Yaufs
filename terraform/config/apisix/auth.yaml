@@ -1,0 +1,21 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: vault
+  namespace: vault
+spec:
+  http:
+    - name: vault
+      match:
+        hosts:
+          - vault.dev.localhost
+        paths:
+          - /*
+      backends:
+        - serviceName: vault
+          servicePort: 8200
+      plugins:
+        - name: redirect
+          enable: true
+          config:
+            http_to_https: true
