@@ -2,7 +2,7 @@ resource "helm_release" "cert-manager" {
   name             = "cert-manager"
   namespace        = var.apisix_namespace
   create_namespace = true
-  depends_on       = [helm_release.vault, helm_release.consul]
+  depends_on       = [helm_release.vault, null_resource.vault_setup]
 
   repository = "https://charts.jetstack.io"
   chart      = "cert-manager"
@@ -65,7 +65,7 @@ resource "kubectl_manifest" "certs" {
       "namespace" = "default"
     }
     "spec" = {
-      "commonName" = "dev.localhost"
+      "commonName" = var.host
       "dnsNames"   = [
         var.host,
         "*.${var.host}",
@@ -120,6 +120,86 @@ resource "helm_release" "apisix" {
     name  = "discovery.consul_kv.prefix"
     value = "upstreams"
   }
+
+  set {
+    name  = "etcd.replicaCount"
+    value = 1
+  }
+
+  set {
+    name  = "pluginAttrs.prometheus.enable_export_server"
+    value = false
+  }
+
+  set {
+    name  = "pluginAttrs.prometheus.export_uri"
+    value = "/apisix/prometheus/metrics"
+  }
+
+  set {
+    name  = "plugins"
+    value = "{api-breaker,public-api,prometheus,request-id,gzip,redirect,openid-connect,proxy-cache}"
+  }
+
+#  set {
+#    name  = "serviceMonitor.enabled"
+#    value = true
+#  }
+}
+
+resource "kubectl_manifest" "apisix_cluster" {
+  depends_on = [helm_release.apisix]
+  yaml_body  = yamlencode({
+    "apiVersion" = "apisix.apache.org/v2"
+    "kind"       = "ApisixClusterConfig"
+    "metadata"   = {
+      "name" = "default"
+    }
+    "spec" = {
+      "monitoring" = {
+        "prometheus" = {
+          "enable" = true
+        }
+      }
+    }
+  })
+}
+
+resource "kubectl_manifest" "apisix_metrics" {
+  depends_on = [helm_release.apisix, kubectl_manifest.apisix_cluster]
+  yaml_body  = yamlencode({
+    "apiVersion" = "apisix.apache.org/v2"
+    "kind"       = "ApisixRoute"
+    "metadata"   = {
+      "name"      = "apisix-metrics"
+      "namespace" = var.apisix_namespace
+    }
+    "spec" = {
+      "http" = [
+        {
+          "backends" = [
+            {
+              "serviceName" = "apisix-admin",
+              "servicePort" = 9180
+            }
+          ]
+          "match" = {
+            "hosts" = [
+              "apisix-gateway.${var.apisix_namespace}.svc.cluster.local"
+            ],
+            "paths" = ["/apisix/prometheus/metrics"]
+          },
+          "name"    = "prometheus-public-api"
+          "plugins" = [
+            {
+              "enable" = true
+              "name"   = "public-api"
+            },
+          ]
+        }
+      ]
+    }
+  })
 }
 
 resource "kubectl_manifest" "tls" {

@@ -1,0 +1,5 @@
+extraScrapeConfigs: |
+  - job_name: "apisix"
+    static_configs:
+      - targets: ["apisix-gateway.apisix.svc.cluster.local"]
+    metrics_path: "/apisix/prometheus/metrics"

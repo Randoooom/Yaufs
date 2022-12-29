@@ -2,7 +2,7 @@ resource "helm_release" "consul" {
   name             = "consul"
   namespace        = var.consul_namespace
   create_namespace = true
-  depends_on       = [helm_release.vault]
+  depends_on       = [helm_release.vault, null_resource.vault_setup]
 
   repository = "https://helm.releases.hashicorp.com"
   chart      = "consul"

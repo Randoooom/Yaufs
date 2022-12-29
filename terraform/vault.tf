@@ -12,6 +12,18 @@ resource "helm_release" "vault" {
   }
 }
 
+resource "null_resource" "vault_setup" {
+  depends_on = [helm_release.vault]
+
+  triggers = {
+    checksum = sha256(file("${path.module}/scripts/setup.sh"))
+  }
+
+  provisioner "local-exec" {
+    command = "sleep 60; /bin/bash scripts/setup.sh ${var.host} ${var.vault_namespace} ${var.consul_namespace}"
+  }
+}
+
 resource "kubectl_manifest" "vault_apisix" {
   depends_on = [helm_release.apisix, helm_release.vault]
   yaml_body  = yamlencode({
