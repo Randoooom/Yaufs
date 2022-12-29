@@ -12,5 +12,4 @@ axum-jsonschema = { version = "0.4.1", features = ["aide"] }
 serde = { version = "1.0.152", features = ["derive"] }
 
 schemars = "0.8.11"
-axum-tracing-opentelemetry = "0.7.0"
 axum-macros = "0.3.0"

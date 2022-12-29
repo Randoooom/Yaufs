@@ -10,6 +10,7 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 opentelemetry = { version = "0.18.0", features = ["metrics", "rt-tokio"] }
 opentelemetry-otlp = { version = "0.11.0", features = ["tonic", "tls", "tls-roots"] }
 tonic = { version = "0.8.3", features = ["tls"] }
+axum-tracing-opentelemetry = { version = "0.6.1", features = ["otlp"] }
 
 url = "2.3.1"
 tracing = "0.1.36"
