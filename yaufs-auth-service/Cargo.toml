@@ -1,0 +1,23 @@
+[package]
+name = "yaufs-auth-service"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+yaufs-monitoring = { path = "../yaufs-monitoring" }
+yaufs-axum = { path = "../yaufs-axum" }
+
+openid = { version = "0.11", default-features = false, features = ["rustls"] }
+tokio = { version = "1.23.0", features = ["full"] }
+serde = { version = "1.0.152", features = ["derive"] }
+schemars = { version = "0.8.11", features = ["chrono"] }
+aide = { version = "0.9.0", features = ["axum", "axum-extra"] }
+
+axum = "0.6.1"
+indexmap = "1.9.2"
+async-trait = "0.1.60"
+log = "0.4.17"
+tracing = "0.1.37"
+thiserror = "1.0.38"

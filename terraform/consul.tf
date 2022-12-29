@@ -66,7 +66,7 @@ resource "helm_release" "consul" {
         }
       }
       "metrics" = {
-        "baseURL"  = "http://prometheus-kube-prometheus-prometheus.${var.prometheus_namespace}.svc.cluster.local"
+        "baseURL"  = "http://prometheus-server.${var.prometheus_namespace}.svc.cluster.local:80"
         "enabled"  = true
         "provider" = "prometheus"
       }
