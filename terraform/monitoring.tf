@@ -38,6 +38,38 @@ resource "helm_release" "grafana" {
           ]
         }
       }
+      "dashboardProviders" = {
+        "dashboardproviders.yaml" = {
+          "apiVersion" = 1
+          "providers"  = [
+            {
+              "name"            = "default"
+              "orgId"           = 1
+              "folder"          = ""
+              "type"            = "file"
+              "disableDeletion" = true
+              "editable"        = true
+              "options"         = {
+                "path" = "/var/lib/grafana/dashboards/default"
+              }
+            }
+          ]
+        }
+      }
+      "dashboards" = {
+        "default" = {
+          "apisix" = {
+            "json" = <<EOF
+              ${file("${path.module}/config/grafana/apisix.json")}
+            EOF
+          }
+          "vault" = {
+            "json" = <<EOF
+              ${file("${path.module}/config/grafana/vault.json")}
+            EOF
+          }
+        }
+      }
     })
   ]
 }

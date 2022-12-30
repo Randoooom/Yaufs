@@ -80,9 +80,9 @@ resource "helm_release" "vault" {
                 prometheus_retention_time = "1h"
               }
 
-              service_registration "kubernetes" {
+              service_registration "consul" {
+                address      = "https://consul-server.${var.consul_namespace}.svc.cluster.local:8501"
               }
-
 EOF
           }
         }
