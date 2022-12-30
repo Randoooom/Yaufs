@@ -1,5 +1,30 @@
+server:
+  extraVolumes:
+    - name: vault-token
+      secret:
+        secretName: prometheus-vault-token
+        namespace: prometheus
+        items:
+          - key: token
+            path: token
+  extraVolumeMounts:
+    - name: vault-token
+      mountPath: /vault
+      readonly: true
+
 extraScrapeConfigs: |
   - job_name: "apisix"
     static_configs:
       - targets: ["apisix-gateway.apisix.svc.cluster.local"]
     metrics_path: "/apisix/prometheus/metrics"
+  - job_name: vault
+    metrics_path: /v1/sys/metrics
+    params:
+      format: ['prometheus']
+    scheme: https
+    static_configs:
+      - targets: ['vault.${vault_namespace}.svc.cluster.local:8200']
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    authorization:
+      credentials_file: /vault/token

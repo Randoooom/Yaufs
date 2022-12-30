@@ -1,22 +1,47 @@
 #!/bin/bash
 
-# kubectl exec -n vault vault-0 -- vault operator init
-# kubectl exec -n vault vault-0 -- vault operator unseal token
-# kubectl exec -n vault vault-0 -- vault operator unseal token
-# kubectl exec -n vault vault-0 -- vault operator unseal token
-# kubectl exec -n vault vault-0 -- vault login token
-
 HOST=$1
 VAULT_NAMESPACE=$2
 CONSUL_NAMESPACE=$3
 
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault operator init -format json | tee vault.json
+# shellcheck disable=SC2143
+while [ "$(kubectl get pods -n vault | grep -c Running)" -ne 4 ]; do
+  sleep 1
+done
 
-kubectl exec -it -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[0] vault.json | tr -d '"')"
-kubectl exec -it -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[1] vault.json | tr -d '"')"
-kubectl exec -it -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[2] vault.json | tr -d '"')"
+mkdir output
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault operator init -format json | tee output/vault.json
 
-kubectl exec -it -n "$VAULT_NAMESPACE" vault-0 -- vault login "$(jq .root_token vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[0] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[1] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault operator unseal "$(jq .unseal_keys_b64[2] output/vault.json | tr -d '"')"
+
+# shellcheck disable=SC2016
+kubectl exec -n "$VAULT_NAMESPACE" vault-1 -- sh -c 'vault operator raft join \
+  -address=https://vault-1.vault-internal:8200 \
+  -leader-ca-cert="$(cat /vault/userconfig/vault-ha-tls/vault.ca)" \
+  -leader-client-cert="$(cat /vault/userconfig/vault-ha-tls/vault.crt)" \
+  -leader-client-key="$(cat /vault/userconfig/vault-ha-tls/vault.key)" \
+  https://vault-0.vault-internal:8200'
+kubectl exec -n "$VAULT_NAMESPACE" vault-1 -- vault operator unseal "$(jq .unseal_keys_b64[0] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-1 -- vault operator unseal "$(jq .unseal_keys_b64[1] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-1 -- vault operator unseal "$(jq .unseal_keys_b64[2] output/vault.json | tr -d '"')"
+
+# shellcheck disable=SC2016
+kubectl exec -n "$VAULT_NAMESPACE" vault-2 -- sh -c 'vault operator raft join \
+  -address=https://vault-2.vault-internal:8200 \
+  -leader-ca-cert="$(cat /vault/userconfig/vault-ha-tls/vault.ca)" \
+  -leader-client-cert="$(cat /vault/userconfig/vault-ha-tls/vault.crt)" \
+  -leader-client-key="$(cat /vault/userconfig/vault-ha-tls/vault.key)" \
+  https://vault-0.vault-internal:8200'
+kubectl exec -n "$VAULT_NAMESPACE" vault-2 -- vault operator unseal "$(jq .unseal_keys_b64[0] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-2 -- vault operator unseal "$(jq .unseal_keys_b64[1] output/vault.json | tr -d '"')"
+kubectl exec -n "$VAULT_NAMESPACE" vault-2 -- vault operator unseal "$(jq .unseal_keys_b64[2] output/vault.json | tr -d '"')"
+
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault login "$(jq .root_token output/vault.json | tr -d '"')"
+
+echo "Activating metrics gathering"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write sys/internal/counters/config enabled=enable
 
 # activate the kv-v2 storage type
 echo "Activating kv-v2 secrets engine"
@@ -75,6 +100,12 @@ path "consul/data/secret/gossip" {
 EOF'
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write bootstrap-token-policy - <<EOF
 path "consul/data/secret/bootstrap-token" {
+  capabilities = ["read"]
+}
+EOF'
+
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write prometheus-metrics - << EOF
+path "/sys/metrics" {
   capabilities = ["read"]
 }
 EOF'
@@ -161,9 +192,14 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/i
   policies=pki \
   ttl=1h
 
-# echo "Executing scripts/oidc.sh"
-# TODO
-# ./scripts/oidc.sh "$HOST" "$VAULT_NAMESPACE" "$CONSUL_NAMESPACE"
+PROMETHEUS_VAULT_TOKEN=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault token create \
+  -field=token \
+  -policy "prometheus-metrics")
+kubectl create namespace prometheus
+kubectl create secret generic prometheus-vault-token -n prometheus --from-literal=token="$PROMETHEUS_VAULT_TOKEN"
+
+echo "Executing scripts/oidc.sh"
+./scripts/oidc.sh "$HOST" "$VAULT_NAMESPACE" "$CONSUL_NAMESPACE"
 
 echo "Vault setup completed"
 

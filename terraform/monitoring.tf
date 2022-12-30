@@ -1,3 +1,11 @@
+data "template_file" "prometheus_scrapes" {
+  template = file("${path.module}/config/prometheus-scrapes.yaml")
+
+  vars = {
+    vault_namespace = var.vault_namespace
+  }
+}
+
 resource "helm_release" "prometheus" {
   name             = "prometheus"
   namespace        = var.prometheus_namespace
@@ -5,7 +13,7 @@ resource "helm_release" "prometheus" {
 
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "prometheus"
-  values     = [file("${path.module}/config/prometheus-scrapes.yaml")]
+  values     = [data.template_file.prometheus_scrapes.rendered]
 }
 
 resource "helm_release" "grafana" {
@@ -35,7 +43,7 @@ resource "helm_release" "grafana" {
 }
 
 resource "kubectl_manifest" "monitoring_apisix" {
-  depends_on = [helm_release.apisix]
+  depends_on = [helm_release.apisix, kubectl_manifest.apisix_openid]
   yaml_body  = yamlencode({
     "apiVersion" = "apisix.apache.org/v2"
     "kind"       = "ApisixRoute"
@@ -45,32 +53,33 @@ resource "kubectl_manifest" "monitoring_apisix" {
     }
     "spec" = {
       "http" = [
-                {
-                  "backends" = [
-                    {
-                      "serviceName" = "grafana"
-                      "servicePort" = 80
-                    },
-                  ]
-                  "match" = {
-                    "hosts" = [
-                      "grafana.${var.host}",
-                    ]
-                    "paths" = [
-                      "/*",
-                    ]
-                  }
-                  "name"    = "grafana"
-                  "plugins" = [
-                    {
-                      "config" = {
-                        "http_to_https" = true
-                      }
-                      "enable" = true
-                      "name"   = "redirect"
-                    },
-                  ]
-                },
+        {
+          "backends" = [
+            {
+              "serviceName" = "grafana"
+              "servicePort" = 80
+            },
+          ]
+          "match" = {
+            "hosts" = [
+              "grafana.${var.host}",
+            ]
+            "paths" = [
+              "/*",
+            ]
+          }
+          "name"    = "grafana"
+          "plugins" = [
+            {
+              "config" = {
+                "http_to_https" = true
+              }
+              "enable" = true
+              "name"   = "redirect"
+            },
+          ],
+          #                  "plugin_config_name" = "oidc"
+        },
         {
           "backends" = [
             {

@@ -42,11 +42,11 @@ resource "helm_release" "consul" {
           "vault" = {
             "agentAnnotations" = <<-EOT
         "vault.hashicorp.com/namespace": "admin"
-
+        "vault.hashicorp.com/ca-cert": "/run/secrets/kubernetes.io/serviceaccount/ca.crt"
         EOT
             "connectCA"        = {
               "additionalConfig"    = "{\"connect\": [{ \"ca_config\": [{ \"namespace\": \"admin\"}]}]}"
-              "address"             = "http://vault.${var.vault_namespace}.svc.cluster.local:8200"
+              "address"             = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
               "intermediatePKIPath" = "connect-intermediate-dc1/"
               "rootPKIPath"         = "connect-root/"
             }

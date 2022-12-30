@@ -44,15 +44,17 @@ resource "kubectl_manifest" "issuer" {
             }
           }
         }
+        "caBundle" = filebase64("${path.module}/output/vault.ca")
         "path"   = "pki/sign/apisix"
-        "server" = "http://vault.${var.vault_namespace}.svc.cluster.local:8200"
+        "server" = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
       }
     }
   })
 }
 
 resource "time_sleep" "wait_for_issuer" {
-  create_duration = "30s"
+  depends_on      = [kubectl_manifest.issuer]
+  create_duration = "10s"
 }
 
 resource "kubectl_manifest" "certs" {
@@ -141,10 +143,10 @@ resource "helm_release" "apisix" {
     value = "{api-breaker,public-api,prometheus,request-id,gzip,redirect,openid-connect,proxy-cache}"
   }
 
-#  set {
-#    name  = "serviceMonitor.enabled"
-#    value = true
-#  }
+  #  set {
+  #    name  = "serviceMonitor.enabled"
+  #    value = true
+  #  }
 }
 
 resource "kubectl_manifest" "apisix_cluster" {
@@ -222,4 +224,42 @@ resource "kubectl_manifest" "tls" {
       }
     }
   })
+}
+
+data "local_file" "vault_output" {
+  depends_on = [null_resource.vault_setup]
+  filename   = "${path.module}/output/output.json"
+}
+
+locals {
+  vault_output_data = jsondecode(data.local_file.vault_output.content)
+}
+
+resource "kubectl_manifest" "apisix_openid" {
+  depends_on = [helm_release.apisix, local.vault_output_data]
+  yaml_body  = yamlencode(
+    {
+      "apiVersion" = "apisix.apache.org/v2"
+      "kind"       = "ApisixPluginConfig"
+      "metadata"   = {
+        "name"      = "oidc"
+        "namespace" = "prometheus"
+      }
+      "spec" = {
+        "plugins" = [
+          {
+            "config" = {
+              "client_id"     = local.vault_output_data.client_id
+              "client_secret" = local.vault_output_data.client_secret
+              "discovery"     = "http://vault.${var.vault_namespace}.svc.cluster.local:8200/v1/identity/oidc/provider/vault/.well-known/openid-configuration"
+              "public_key"    = local.vault_output_data.public_key
+              "realm"         = "apisix"
+              "redirect_uri"  = "https://grafana.${var.host}/callback"
+            }
+            "enable" = true
+            "name"   = "openid-connect"
+          },
+        ]
+      }
+    })
 }

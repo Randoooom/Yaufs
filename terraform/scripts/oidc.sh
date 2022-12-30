@@ -2,18 +2,14 @@
 
 HOST=$1
 VAULT_NAMESPACE=$2
-CONSUL_NAMESPACE=$3
 
 echo "Enabling userpass authentication"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault auth enable userpass
 
 echo "Creating initial vault OIDC admin"
-password=$(openssl rand -base64 28 | tr -d "=+/" | cut -c1-24)
-echo "username: admin"
-echo "password: $password"
-# TODO
+password=$(openssl rand -base64 28 | tr -d "=+/" | cut -c1-24 | tee output/oidc-admin)
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/userpass/users/admin \
-  password="$(openssl rand -base64 28 | tr -d "=+/" | cut -c1-24)" \
+  password="$password" \
   token_ttl="1h"
 unset password
 
@@ -27,7 +23,6 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/group \
   name="engineering" \
   member_entity_ids="$ENTITY_ID"
 
-GROUP_ID=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault read -field=id identity/group/name/engineering)
 USERPASS_ACCESSOR=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault auth list -detailed -format json | jq -r '.["userpass/"].accessor')
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/entity-alias \
   name="admin" \
@@ -42,13 +37,13 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/oidc/key/key 
   algorithm="RS256"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/oidc/client/apisix \
   redirect_uris="https://${HOST}/oidc/callback" \
+  assignments="allow_all" \
   key="key" \
   id_token_ttl="30m" \
   access_token_ttl="1h"
+
 CLIENT_ID=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault read -field=client_id identity/oidc/client/apisix)
 CLIENT_SECRET=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault read -field=client_secret identity/oidc/client/apisix)
-echo "Apisix Client: $CLIENT_ID"
-echo "Apisix Secret: $CLIENT_SECRET"
 
 echo "Creating templates"
 USER_SCOPE_TEMPLATE='{
@@ -72,12 +67,17 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/oidc/scope/gr
 echo "Creating provider"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/oidc/provider/vault \
   allowed_client_ids="${CLIENT_ID}" \
-  scopes_supported="groups,user"
+  scopes_supported="groups,user" \
+  issuer="https://vault.${HOST}"
 ISSUER=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault read identity/oidc/provider/vault -format=json | jq .data.issuer | tr -d '"')
 echo "Issuer: $ISSUER"
 
 echo "Fetching provider key"
-PUBLIC_KEY=$(
-  curl --request GET "https://vault.${HOST}/v1/identity/oidc/provider/vault/.well-known/keys" -k | jq .keys[0].n
-)
-# TODO
+PUBLIC_KEY=$(curl --request GET "http://vault.${VAULT_NAMESPACE}.svc.cluster.local:8200/v1/identity/oidc/provider/vault/.well-known/keys" -k | jq .keys[0].n)
+
+echo "Writing data to output/output.json for terraform"
+jq -n \
+  --arg client_id "$CLIENT_ID" \
+  --arg client_secret "$CLIENT_SECRET" \
+  --arg public_key "$PUBLIC_KEY" \
+  '{client_id: $client_id, client_secret: $client_secret, public_key: $public_key}' | tee output/output.json
