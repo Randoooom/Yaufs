@@ -1,26 +1,11 @@
-resource "helm_release" "cert-manager" {
-  name             = "cert-manager"
-  namespace        = var.apisix_namespace
-  create_namespace = true
-  depends_on       = [helm_release.vault, null_resource.vault_setup]
-
-  repository = "https://charts.jetstack.io"
-  chart      = "cert-manager"
-
-  set {
-    name  = "prometheus.enabled"
-    value = false
-  }
-
-  set {
-    name  = "installCRDs"
-    value = true
-  }
-}
-
 resource "kubectl_manifest" "issuer_secret" {
   depends_on = [helm_release.cert-manager]
   yaml_body  = file("${path.module}/config/issuer-secret.yaml")
+}
+
+data "local_file" "vault_ca" {
+  filename = "${path.module}/output/vault.ca"
+  depends_on = [null_resource.vault_init]
 }
 
 resource "kubectl_manifest" "issuer" {
@@ -44,9 +29,9 @@ resource "kubectl_manifest" "issuer" {
             }
           }
         }
-        "caBundle" = filebase64("${path.module}/output/vault.ca")
-        "path"   = "pki/sign/apisix"
-        "server" = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
+        "caBundle" = data.local_file.vault_ca.content_base64
+        "path"     = "pki/sign/apisix"
+        "server"   = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
       }
     }
   })
@@ -81,72 +66,63 @@ resource "kubectl_manifest" "certs" {
 }
 
 resource "helm_release" "apisix" {
-  name       = "apisix"
-  namespace  = var.apisix_namespace
-  depends_on = [helm_release.cert-manager]
+  name             = "apisix"
+  namespace        = var.apisix_namespace
+  depends_on       = [helm_release.cert-manager]
+  create_namespace = true
 
   repository = "https://charts.apiseven.com"
   chart      = "apisix"
 
-  set {
-    name  = "ingress-controller.enabled"
-    value = true
-  }
-
-  set {
-    name  = "ingress-controller.config.apisix.serviceNamespace"
-    value = "apisix"
-  }
-
-  set {
-    name  = "gateway.type"
-    value = "NodePort"
-  }
-
-  set {
-    name  = "gateway.tls.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "discovery.enabled"
-    value = true
-  }
-
-  set {
-    name  = "discovery.consul_kv.servers"
-    value = yamlencode(["consul.${var.consul_namespace}.svc.cluster.local:8501"])
-  }
-
-  set {
-    name  = "discovery.consul_kv.prefix"
-    value = "upstreams"
-  }
-
-  set {
-    name  = "etcd.replicaCount"
-    value = 1
-  }
-
-  set {
-    name  = "pluginAttrs.prometheus.enable_export_server"
-    value = false
-  }
-
-  set {
-    name  = "pluginAttrs.prometheus.export_uri"
-    value = "/apisix/prometheus/metrics"
-  }
-
-  set {
-    name  = "plugins"
-    value = "{api-breaker,public-api,prometheus,request-id,gzip,redirect,openid-connect,proxy-cache}"
-  }
-
-  #  set {
-  #    name  = "serviceMonitor.enabled"
-  #    value = true
-  #  }
+  values = [
+    yamlencode({
+      "gateway" = {
+        "type" = "NodePort"
+        "tls"  = {
+          "enabled" = "true"
+        }
+      }
+      "discovery" = {
+        "enabled" = "true"
+        "dns"     = {
+          "servers" = [
+            "10.97.152.16"
+          ]
+        }
+      }
+      "etcd" = {
+        "replicaCount" = 1
+      }
+      "plugins" = [
+        "api-breaker",
+        "public-api",
+        "prometheus",
+        "request-id",
+        "gzip",
+        "redirect",
+        "openid-connect",
+        "proxy-cache"
+      ]
+      "pluginAttrs" = {
+        "prometheus" = {
+          "enable_export_server" = false
+          "export_uri"           = "/apisix/prometheus/metrics"
+        }
+      }
+      "ingress-controller" = {
+        "enabled" = true
+        "config"  = {
+          "apisix" = {
+            "serviceNamespace" = var.apisix_namespace
+            "adminAPIVersion"  = "v3"
+          }
+        }
+        "podAnnotations" = {
+          "linkerd.io/inject": "enabled"
+        }
+      }
+    })
+  ]
 }
 
 resource "kubectl_manifest" "apisix_cluster" {
@@ -167,42 +143,42 @@ resource "kubectl_manifest" "apisix_cluster" {
   })
 }
 
-resource "kubectl_manifest" "apisix_metrics" {
-  depends_on = [helm_release.apisix, kubectl_manifest.apisix_cluster]
-  yaml_body  = yamlencode({
-    "apiVersion" = "apisix.apache.org/v2"
-    "kind"       = "ApisixRoute"
-    "metadata"   = {
-      "name"      = "apisix-metrics"
-      "namespace" = var.apisix_namespace
-    }
-    "spec" = {
-      "http" = [
-        {
-          "backends" = [
-            {
-              "serviceName" = "apisix-admin",
-              "servicePort" = 9180
-            }
-          ]
-          "match" = {
-            "hosts" = [
-              "apisix-gateway.${var.apisix_namespace}.svc.cluster.local"
-            ],
-            "paths" = ["/apisix/prometheus/metrics"]
-          },
-          "name"    = "prometheus-public-api"
-          "plugins" = [
-            {
-              "enable" = true
-              "name"   = "public-api"
-            },
-          ]
-        }
-      ]
-    }
-  })
-}
+#resource "kubectl_manifest" "apisix_metrics" {
+#  depends_on = [helm_release.apisix, kubectl_manifest.apisix_cluster]
+#  yaml_body  = yamlencode({
+#    "apiVersion" = "apisix.apache.org/v2"
+#    "kind"       = "ApisixRoute"
+#    "metadata"   = {
+#      "name"      = "apisix-metrics"
+#      "namespace" = var.apisix_namespace
+#    }
+#    "spec" = {
+#      "http" = [
+#        {
+#          "backends" = [
+#            {
+#              "serviceName" = "apisix-admin",
+#              "servicePort" = 9180
+#            }
+#          ]
+#          "match" = {
+#            "hosts" = [
+#              "apisix-gateway.${var.apisix_namespace}.svc.cluster.local"
+#            ],
+#            "paths" = ["/apisix/prometheus/metrics"]
+#          },
+#          "name"    = "prometheus-public-api"
+#          "plugins" = [
+#            {
+#              "enable" = true
+#              "name"   = "public-api"
+#            },
+#          ]
+#        }
+#      ]
+#    }
+#  })
+#}
 
 resource "kubectl_manifest" "tls" {
   depends_on = [helm_release.apisix]

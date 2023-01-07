@@ -74,71 +74,71 @@ resource "helm_release" "grafana" {
   ]
 }
 
-resource "kubectl_manifest" "monitoring_apisix" {
-  depends_on = [helm_release.apisix, kubectl_manifest.apisix_openid]
-  yaml_body  = yamlencode({
-    "apiVersion" = "apisix.apache.org/v2"
-    "kind"       = "ApisixRoute"
-    "metadata"   = {
-      "name"      = "monitoring"
-      "namespace" = var.prometheus_namespace
-    }
-    "spec" = {
-      "http" = [
-        {
-          "backends" = [
-            {
-              "serviceName" = "grafana"
-              "servicePort" = 80
-            },
-          ]
-          "match" = {
-            "hosts" = [
-              "grafana.${var.host}",
-            ]
-            "paths" = [
-              "/*",
-            ]
-          }
-          "name"    = "grafana"
-          "plugins" = [
-            {
-              "config" = {
-                "http_to_https" = true
-              }
-              "enable" = true
-              "name"   = "redirect"
-            },
-          ],
-          #                  "plugin_config_name" = "oidc"
-        },
-        {
-          "backends" = [
-            {
-              "serviceName" = "prometheus-server"
-              "servicePort" = 80
-            },
-          ]
-          "match" = {
-            "hosts" = [
-              "prometheus.${var.host}",
-            ]
-            "paths" = [
-              "/*",
-            ]
-          }
-          "name"    = "prometheus"
-          "plugins" = [
-            {
-              "config" = {
-                "http_to_https" = true
-              }
-              "enable" = true
-              "name"   = "redirect"
-            },
-          ]
-        },
-      ]
-    }
-  })
-}
+#resource "kubectl_manifest" "monitoring_apisix" {
+#  depends_on = [helm_release.apisix, kubectl_manifest.apisix_openid]
+#  yaml_body  = yamlencode({
+#    "apiVersion" = "apisix.apache.org/v2"
+#    "kind"       = "ApisixRoute"
+#    "metadata"   = {
+#      "name"      = "monitoring"
+#      "namespace" = var.prometheus_namespace
+#    }
+#    "spec" = {
+#      "http" = [
+#        {
+#          "backends" = [
+#            {
+#              "serviceName" = "grafana"
+#              "servicePort" = 80
+#            },
+#          ]
+#          "match" = {
+#            "hosts" = [
+#              "grafana.${var.host}",
+#            ]
+#            "paths" = [
+#              "/*",
+#            ]
+#          }
+#          "name"    = "grafana"
+#          "plugins" = [
+#            {
+#              "config" = {
+#                "http_to_https" = true
+#              }
+#              "enable" = true
+#              "name"   = "redirect"
+#            },
+#          ],
+#          #                  "plugin_config_name" = "oidc"
+#        },
+#        {
+#          "backends" = [
+#            {
+#              "serviceName" = "prometheus-server"
+#              "servicePort" = 80
+#            },
+#          ]
+#          "match" = {
+#            "hosts" = [
+#              "prometheus.${var.host}",
+#            ]
+#            "paths" = [
+#              "/*",
+#            ]
+#          }
+#          "name"    = "prometheus"
+#          "plugins" = [
+#            {
+#              "config" = {
+#                "http_to_https" = true
+#              }
+#              "enable" = true
+#              "name"   = "redirect"
+#            },
+#          ]
+#        },
+#      ]
+#    }
+#  })
+#}

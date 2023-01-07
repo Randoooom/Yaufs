@@ -4,26 +4,31 @@ variable "cluster" {
 }
 
 variable "host" {
-  type = string
+  type    = string
   default = "dev.localhost"
 }
 
 variable "apisix_namespace" {
-  type = string
+  type    = string
   default = "apisix"
 }
 
 variable "vault_namespace" {
-  type = string
+  type    = string
   default = "vault"
 }
 
-variable "consul_namespace" {
-  type = string
-  default = "consul"
+variable "cert_manager_namespace" {
+  type    = string
+  default = "cert-manager"
+}
+
+variable "linkerd_namespace" {
+  type    = string
+  default = "linkerd"
 }
 
 variable "prometheus_namespace" {
-  type = string
+  type    = string
   default = "prometheus"
 }

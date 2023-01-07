@@ -1,6 +1,6 @@
 resource "null_resource" "vault_init" {
   provisioner "local-exec" {
-    command = "chmod +x scripts/cert.sh; /bin/bash scripts/cert.sh ${var.vault_namespace}"
+    command = "chmod +x scripts/vault-init.sh; /bin/bash scripts/vault-init.sh ${var.vault_namespace}"
   }
 }
 
@@ -19,12 +19,6 @@ resource "helm_release" "vault" {
         "tlsDisable" = false
       }
       "server" = {
-        "annotations" = {
-          "consul.hashicorp.com/connect-inject"       = "true"
-          "consul.hashicorp.com/connect-service"      = "vault"
-          "consul.hashicorp.com/connect-service-port" = "8200"
-          "consul.hashicorp.com/transparent-proxy"    = "false"
-        }
         "extraEnvironmentVars" = {
           "VAULT_CACERT"  = "/vault/userconfig/vault-ha-tls/vault.ca"
           "VAULT_TLSCERT" = "/vault/userconfig/vault-ha-tls/vault.crt"
@@ -76,13 +70,11 @@ resource "helm_release" "vault" {
               }
 
               telemetry {
-                disable_hostname = true
+                disable_hostname          = true
                 prometheus_retention_time = "1h"
               }
 
-              service_registration "consul" {
-                address      = "https://consul-server.${var.consul_namespace}.svc.cluster.local:8501"
-              }
+              service_registration "kubernetes" {}
 EOF
           }
         }
@@ -99,46 +91,46 @@ resource "null_resource" "vault_setup" {
   depends_on = [helm_release.vault]
 
   provisioner "local-exec" {
-    command = "chmod +x scripts/setup.sh; chmod +x scripts/oidc.sh; /bin/bash scripts/setup.sh ${var.host} ${var.vault_namespace} ${var.consul_namespace}"
+    command = "chmod +x scripts/setup.sh; chmod +x scripts/oidc.sh; /bin/bash scripts/setup.sh ${var.host} ${var.vault_namespace} ${var.linkerd_namespace}"
   }
 }
 
-resource "kubernetes_manifest" "vault_ingress" {
-  depends_on = [helm_release.apisix, helm_release.vault]
-  manifest   = {
-    "apiVersion" = "networking.k8s.io/v1"
-    "kind"       = "Ingress"
-    "metadata"   = {
-      "annotations" = {
-        "k8s.apisix.apache.org/http-to-https"   = "true"
-        "k8s.apisix.apache.org/upstream-scheme" = "https"
-      }
-      "name"      = "vault"
-      "namespace" = var.vault_namespace
-    }
-    "spec" = {
-      "ingressClassName" = "apisix"
-      "rules"            = [
-        {
-          "host" = "vault.${var.host}"
-          "http" = {
-            "paths" = [
-              {
-                "backend" = {
-                  "service" = {
-                    "name" = "vault"
-                    "port" = {
-                      "number" = 8200
-                    }
-                  }
-                }
-                "path"     = "/*"
-                "pathType" = "Prefix"
-              }
-            ]
-          }
-        },
-      ]
-    }
-  }
-}
+#resource "kubernetes_manifest" "vault_ingress" {
+#  depends_on = [helm_release.apisix, helm_release.vault]
+#  manifest   = {
+#    "apiVersion" = "networking.k8s.io/v1"
+#    "kind"       = "Ingress"
+#    "metadata"   = {
+#      "annotations" = {
+#        "k8s.apisix.apache.org/http-to-https"   = "true"
+#        "k8s.apisix.apache.org/upstream-scheme" = "https"
+#      }
+#      "name"      = "vault"
+#      "namespace" = var.vault_namespace
+#    }
+#    "spec" = {
+#      "ingressClassName" = "apisix"
+#      "rules"            = [
+#        {
+#          "host" = "vault.${var.host}"
+#          "http" = {
+#            "paths" = [
+#              {
+#                "backend" = {
+#                  "service" = {
+#                    "name" = "vault"
+#                    "port" = {
+#                      "number" = 8200
+#                    }
+#                  }
+#                }
+#                "path"     = "/*"
+#                "pathType" = "Prefix"
+#              }
+#            ]
+#          }
+#        },
+#      ]
+#    }
+#  }
+#}
