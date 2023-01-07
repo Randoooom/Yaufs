@@ -111,7 +111,6 @@ resource "helm_release" "linkerd" {
 
   values = [
     yamlencode({
-      "controllerLogLevel" : "debug"
       "identityTrustAnchorsPEM" = data.local_file.linkerd_ca.content
       "identity"                = {
         "issuer" = {
