@@ -1,35 +1,31 @@
 pub extern crate axum_tracing_opentelemetry;
-extern crate simple_logger;
 
-mod telemetry;
-
-use log::LevelFilter;
-#[cfg(not(debug_assertions))]
+use axum_tracing_opentelemetry::make_resource;
 use tracing_subscriber::layer::SubscriberExt;
 
 /// This function has to be called at the top of every main function belonging
 /// to the yaufs-stack. Here we setup the most important functionalities for the monitoring
 /// (observability and metrics).
-pub fn init() {
-    // load dotenv
-    dotenv::dotenv().ok();
+#[allow(dead_code)]
+pub fn init_tracing(service_name: &'static str, service_version: &'static str) {
+    let resource = make_resource(service_name, service_version);
+    let tracer = axum_tracing_opentelemetry::jaeger::init_tracer(
+        resource,
+        axum_tracing_opentelemetry::jaeger::identity,
+    )
+    .unwrap();
 
-    // set the logging format
-    simple_logger::SimpleLogger::new()
-        .with_level(LevelFilter::Info)
-        .init()
-        .ok();
+    let layer = tracing_opentelemetry::layer().with_tracer(tracer);
+    let subscriber = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(layer);
 
-    // if we do not run in debug mode install the telemetry module
-    #[cfg(not(debug_assertions))]
-    {
-        let tracer = telemetry::install_tracer();
-        let subscriber = tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer())
-            .with(tracing_opentelemetry::layer().with_tracer(tracer));
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+}
 
-        // activate global
-        tracing::subscriber::set_global_default(subscriber)
-            .expect("Error while setting global subscriber");
-    }
+#[macro_export]
+macro_rules! init {
+    () => {
+        $crate::init_tracing(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))
+    };
 }

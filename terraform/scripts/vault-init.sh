@@ -2,6 +2,10 @@
 
 VAULT_NAMESPACE=$1
 
+kubectl create namespace apisix
+kubectl create configmap -n apisix yaufs-request-id \
+  --from-file=../yaufs-apisix-request-id/target/wasm32-wasi/release/yaufs_apisix_request_id.wasm
+
 mkdir output
 
 openssl genrsa -out output/vault.key 2048
@@ -66,4 +70,3 @@ kubectl create secret generic vault-ha-tls \
   --from-file=vault.key=output/vault.key \
   --from-file=vault.crt=output/vault.crt \
   --from-file=vault.ca=output/vault.ca
-

@@ -4,7 +4,7 @@ resource "kubectl_manifest" "issuer_secret" {
 }
 
 data "local_file" "vault_ca" {
-  filename = "${path.module}/output/vault.ca"
+  filename   = "${path.module}/output/vault.ca"
   depends_on = [null_resource.vault_init]
 }
 
@@ -68,7 +68,7 @@ resource "kubectl_manifest" "certs" {
 resource "helm_release" "apisix" {
   name             = "apisix"
   namespace        = var.apisix_namespace
-  depends_on       = [helm_release.cert-manager]
+  depends_on       = [helm_release.cert-manager, helm_release.linkerd]
   create_namespace = true
 
   repository = "https://charts.apiseven.com"
@@ -76,6 +76,25 @@ resource "helm_release" "apisix" {
 
   values = [
     yamlencode({
+      "extraVolumes" = [
+        {
+          name      = "yaufs-request-id"
+          configMap = {
+            name = "yaufs-request-id"
+          }
+        }
+      ]
+      "extraVolumeMounts" = [
+        {
+          name      = "yaufs-request-id"
+          mountPath = "/plugins"
+        }
+      ]
+      "apisix" = {
+        "podAnnotations" = {
+          "linkerd.io/inject" = "enabled"
+        }
+      }
       "gateway" = {
         "type" = "NodePort"
         "tls"  = {
@@ -93,6 +112,17 @@ resource "helm_release" "apisix" {
       "etcd" = {
         "replicaCount" = 1
       }
+      "wasmPlugins" = {
+        "enabled" = true
+        "plugins" = [
+          {
+            "name" = "yaufs-request-id"
+            "priority" = 2001
+            "file" = "/plugins/yaufs_apisix_request_id.wasm"
+            "http_request_phase" = "access"
+          }
+        ]
+      }
       "plugins" = [
         "api-breaker",
         "public-api",
@@ -101,12 +131,23 @@ resource "helm_release" "apisix" {
         "gzip",
         "redirect",
         "openid-connect",
-        "proxy-cache"
+        "proxy-cache",
+        "opentelemetry"
       ]
       "pluginAttrs" = {
         "prometheus" = {
           "enable_export_server" = false
           "export_uri"           = "/apisix/prometheus/metrics"
+        }
+        "opentelemetry" = {
+          "trace_id_source" = "random"
+          "resource"        = {
+            "service.name" = "APISIX"
+          }
+          "collector" = {
+            "address"         = "jaeger-default-collector-headless.${var.jaeger_namespace}.svc.cluster.local:4318"
+            "request_timeout" = 3
+          }
         }
       }
       "ingress-controller" = {
@@ -118,7 +159,7 @@ resource "helm_release" "apisix" {
           }
         }
         "podAnnotations" = {
-          "linkerd.io/inject": "enabled"
+          "linkerd.io/inject" = "ingress"
         }
       }
     })
@@ -143,42 +184,42 @@ resource "kubectl_manifest" "apisix_cluster" {
   })
 }
 
-#resource "kubectl_manifest" "apisix_metrics" {
-#  depends_on = [helm_release.apisix, kubectl_manifest.apisix_cluster]
-#  yaml_body  = yamlencode({
-#    "apiVersion" = "apisix.apache.org/v2"
-#    "kind"       = "ApisixRoute"
-#    "metadata"   = {
-#      "name"      = "apisix-metrics"
-#      "namespace" = var.apisix_namespace
-#    }
-#    "spec" = {
-#      "http" = [
-#        {
-#          "backends" = [
-#            {
-#              "serviceName" = "apisix-admin",
-#              "servicePort" = 9180
-#            }
-#          ]
-#          "match" = {
-#            "hosts" = [
-#              "apisix-gateway.${var.apisix_namespace}.svc.cluster.local"
-#            ],
-#            "paths" = ["/apisix/prometheus/metrics"]
-#          },
-#          "name"    = "prometheus-public-api"
-#          "plugins" = [
-#            {
-#              "enable" = true
-#              "name"   = "public-api"
-#            },
-#          ]
-#        }
-#      ]
-#    }
-#  })
-#}
+resource "kubectl_manifest" "apisix_metrics" {
+  depends_on = [helm_release.apisix, kubectl_manifest.apisix_cluster]
+  yaml_body  = yamlencode({
+    "apiVersion" = "apisix.apache.org/v2"
+    "kind"       = "ApisixRoute"
+    "metadata"   = {
+      "name"      = "apisix-metrics"
+      "namespace" = var.apisix_namespace
+    }
+    "spec" = {
+      "http" = [
+        {
+          "backends" = [
+            {
+              "serviceName" = "apisix-admin",
+              "servicePort" = 9180
+            }
+          ]
+          "match" = {
+            "hosts" = [
+              "apisix-gateway.${var.apisix_namespace}.svc.cluster.local"
+            ],
+            "paths" = ["/apisix/prometheus/metrics"]
+          },
+          "name"    = "prometheus-public-api"
+          "plugins" = [
+            {
+              "enable" = true
+              "name"   = "public-api"
+            },
+          ]
+        }
+      ]
+    }
+  })
+}
 
 resource "kubectl_manifest" "tls" {
   depends_on = [helm_release.apisix]

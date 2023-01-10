@@ -14,10 +14,10 @@ pub struct ServiceRejection {
 
 impl ServiceRejection {
     /// Create a new rejection based on the given parameters
-    pub fn new(status_code: StatusCode, error: Box<dyn std::error::Error>) -> Self {
+    pub fn new(status_code: StatusCode, error: String) -> Self {
         Self {
             status_code,
-            error: error.to_string(),
+            error,
             trace_id: axum_tracing_opentelemetry::find_current_trace_id(),
         }
     }

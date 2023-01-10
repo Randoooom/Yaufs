@@ -12,7 +12,10 @@ mod error;
 mod extractor;
 pub mod router;
 
-mod prelude {
+pub mod prelude {
     pub use crate::error::ServiceRejection;
     pub use crate::extractor::Json;
+
+    pub use axum::extract::Query;
+    pub use axum::http::StatusCode;
 }

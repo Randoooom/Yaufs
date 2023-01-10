@@ -95,42 +95,42 @@ resource "null_resource" "vault_setup" {
   }
 }
 
-#resource "kubernetes_manifest" "vault_ingress" {
-#  depends_on = [helm_release.apisix, helm_release.vault]
-#  manifest   = {
-#    "apiVersion" = "networking.k8s.io/v1"
-#    "kind"       = "Ingress"
-#    "metadata"   = {
-#      "annotations" = {
-#        "k8s.apisix.apache.org/http-to-https"   = "true"
-#        "k8s.apisix.apache.org/upstream-scheme" = "https"
-#      }
-#      "name"      = "vault"
-#      "namespace" = var.vault_namespace
-#    }
-#    "spec" = {
-#      "ingressClassName" = "apisix"
-#      "rules"            = [
-#        {
-#          "host" = "vault.${var.host}"
-#          "http" = {
-#            "paths" = [
-#              {
-#                "backend" = {
-#                  "service" = {
-#                    "name" = "vault"
-#                    "port" = {
-#                      "number" = 8200
-#                    }
-#                  }
-#                }
-#                "path"     = "/*"
-#                "pathType" = "Prefix"
-#              }
-#            ]
-#          }
-#        },
-#      ]
-#    }
-#  }
-#}
+resource "kubernetes_manifest" "vault_ingress" {
+  depends_on = [helm_release.apisix, helm_release.vault]
+  manifest   = {
+    "apiVersion" = "networking.k8s.io/v1"
+    "kind"       = "Ingress"
+    "metadata"   = {
+      "annotations" = {
+        "k8s.apisix.apache.org/http-to-https"   = "true"
+        "k8s.apisix.apache.org/upstream-scheme" = "https"
+      }
+      "name"      = "vault"
+      "namespace" = var.vault_namespace
+    }
+    "spec" = {
+      "ingressClassName" = "apisix"
+      "rules"            = [
+        {
+          "host" = "vault.${var.host}"
+          "http" = {
+            "paths" = [
+              {
+                "backend" = {
+                  "service" = {
+                    "name" = "vault"
+                    "port" = {
+                      "number" = 8200
+                    }
+                  }
+                }
+                "path"     = "/*"
+                "pathType" = "Prefix"
+              }
+            ]
+          }
+        },
+      ]
+    }
+  }
+}

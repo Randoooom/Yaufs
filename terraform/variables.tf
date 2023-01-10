@@ -32,3 +32,8 @@ variable "prometheus_namespace" {
   type    = string
   default = "prometheus"
 }
+
+variable "jaeger_namespace" {
+  type    = string
+  default = "jaeger"
+}
