@@ -3,7 +3,7 @@ name: Build template-service
 on:
   push:
     branches:
-      - "master"
+      - "main"
     paths:
       - "yaufs-template-service/**/*"
 
