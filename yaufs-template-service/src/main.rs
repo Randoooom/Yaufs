@@ -6,7 +6,7 @@ extern crate async_trait;
 extern crate tracing;
 
 use crate::prelude::*;
-use crate::template_service::template_service_server::{TemplateService, TemplateServiceServer};
+use crate::proto::template_service_server::{TemplateService, TemplateServiceServer};
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
@@ -15,8 +15,10 @@ use tower_http::trace::TraceLayer;
 
 mod methods;
 
-pub mod template_service {
+pub mod proto {
     tonic::include_proto!("template_service");
+    pub const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("template_service_descriptor");
 }
 
 pub struct TemplateServiceContext;
@@ -80,8 +82,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tower_layer = tower::ServiceBuilder::new()
         .layer(TraceLayer::new_for_grpc())
         .into_inner();
+    let reflection = tonic_reflection::server::Builder::configure()
+        .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
+        .build()
+        .unwrap();
     Server::builder()
         .layer(tower_layer)
+        .add_service(reflection)
         .add_service(TemplateServiceServer::new(TemplateServiceContext))
         .serve(ADDRESS.parse().unwrap())
         .await?;
@@ -90,6 +97,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub mod prelude {
-    pub use crate::template_service::*;
+    pub use crate::proto::*;
     pub use tonic::{Request, Response, Status};
 }
