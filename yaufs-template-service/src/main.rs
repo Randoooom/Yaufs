@@ -7,8 +7,8 @@ extern crate tracing;
 
 use crate::prelude::*;
 use crate::template_service::template_service_server::{TemplateService, TemplateServiceServer};
-use std::sync::Arc;
-use surrealdb::engine::remote::ws::{Ws, Wss};
+use surrealdb::engine::remote::ws::{Client, Ws};
+use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tonic::transport::Server;
 use tower_http::trace::TraceLayer;
@@ -19,9 +19,7 @@ pub mod template_service {
     tonic::include_proto!("template_service");
 }
 
-pub struct TemplateServiceContext {
-    surreal: Arc<Surreal<Wss>>,
-}
+pub struct TemplateServiceContext;
 
 #[tonic::async_trait]
 impl TemplateService for TemplateServiceContext {
@@ -55,7 +53,8 @@ impl TemplateService for TemplateServiceContext {
 }
 
 const ADDRESS: &'static str = "0.0.0.0:8000";
-const SURREALDB: &'static str = "SURREALDB";
+pub static SURREALDB: Surreal<Client> = Surreal::init();
+const SURREALDB_ENDPOINT: &'static str = "SURREALDB_ENDPOINT";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,17 +62,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     yaufs_monitoring::init!();
 
     // connect to the surrealdb instance
-    let surreal =
-        Surreal::new::<Wss>(std::env::var(SURREALDB).expect("Missing SURREALDB env variable"))
-            .await?;
+    SURREALDB
+        .connect::<Ws>(
+            std::env::var(SURREALDB_ENDPOINT).expect("Missing SURREALDB_ENDPOINT env variable"),
+        )
+        .await?;
+    // TODO: integrate vault storage
+    SURREALDB
+        .signin(Root {
+            username: "root",
+            password: "root",
+        })
+        .await?;
 
     // start tonic serve on specified address
     info!("Starting grpc server on {}", ADDRESS);
-    Server::builder()
+    let tower_layer = tower::ServiceBuilder::new()
         .layer(TraceLayer::new_for_grpc())
-        .add_service(TemplateServiceServer::new(TemplateServiceContext {
-            surreal: Arc::new(surreal),
-        }))
+        .into_inner();
+    Server::builder()
+        .layer(tower_layer)
+        .add_service(TemplateServiceServer::new(TemplateServiceContext))
         .serve(ADDRESS.parse().unwrap())
         .await?;
 

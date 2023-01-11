@@ -8,12 +8,13 @@ edition = "2021"
 [dependencies]
 yaufs-monitoring = { path = "../yaufs-monitoring" }
 
-surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", commit = "db4ac267c2e40f84377d95be242a3a55094e7ecf" }
+surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "db4ac267c2e40f84377d95be242a3a55094e7ecf" }
 
 tokio = { version = "1.23.0", features = ["full"] }
 serde = { version = "1.0.152", features = ["derive"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
 
+tower = "0.4.13"
 tonic = "0.8.3"
 prost = "0.11.5"
 openidconnect = "2.4.0"
