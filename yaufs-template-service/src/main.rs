@@ -88,6 +88,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     Server::builder()
         .layer(tower_layer)
+        .add_service(
+            yaufs_tonic::init_health::<TemplateServiceServer<TemplateServiceContext>>().await,
+        )
         .add_service(reflection)
         .add_service(TemplateServiceServer::new(TemplateServiceContext))
         .serve(ADDRESS.parse().unwrap())

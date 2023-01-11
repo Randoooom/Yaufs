@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 yaufs-monitoring = { path = "../yaufs-monitoring" }
+yaufs-tonic = { path = "../yaufs-tonic" }
 
 surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "db4ac267c2e40f84377d95be242a3a55094e7ecf" }
 

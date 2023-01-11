@@ -1,0 +1,38 @@
+name: Build template-service
+
+on:
+  push:
+    branches:
+      - "master"
+    paths:
+      - "yaufs-template-service/**/*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: randoooom/yaufs-template-service
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu:latest
+    permissions:
+      content: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Login into repository
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}g
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:nightly
+          target: template-service
