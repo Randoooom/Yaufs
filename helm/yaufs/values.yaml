@@ -1,0 +1,21 @@
+templates:
+  logLevel: Info
+  name: yaufs-template-service
+  image: ghcr.io/randoooom/yaufs-template-service:latest
+
+  service:
+    name: yaufs-template-service
+    targetPort: 8000
+    type: ClusterIP
+
+  serviceAccount:
+    name: yaufs-template-service
+
+  surrealdb:
+    name: surrealdb
+    image: surrealdb/surrealdb:nightly
+
+    service:
+      name: surrealdb
+      targetPort: 8000
+      type: ClusterIP

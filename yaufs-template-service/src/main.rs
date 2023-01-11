@@ -27,28 +27,28 @@ pub struct TemplateServiceContext;
 impl TemplateService for TemplateServiceContext {
     async fn get_template(
         &self,
-        request: Request<TemplateId>,
+        _request: Request<TemplateId>,
     ) -> Result<Response<Template>, Status> {
         todo!()
     }
 
     async fn list_templates(
         &self,
-        request: Request<ListTemplatesMessage>,
+        _request: Request<ListTemplatesMessage>,
     ) -> Result<Response<TemplateList>, Status> {
         todo!()
     }
 
     async fn delete_template(
         &self,
-        request: Request<TemplateId>,
+        _request: Request<TemplateId>,
     ) -> Result<Response<Template>, Status> {
         todo!()
     }
 
     async fn create_template(
         &self,
-        request: Request<CreateTemplateMessage>,
+        _request: Request<CreateTemplateMessage>,
     ) -> Result<Response<Template>, Status> {
         todo!()
     }
