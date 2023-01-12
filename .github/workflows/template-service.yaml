@@ -6,16 +6,17 @@ on:
       - "main"
     paths:
       - "yaufs-template-service/**/*"
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: randoooom/yaufs-template-service
+  IMAGE_NAME: ghcr.io/randoooom/yaufs-template-service
 
 jobs:
   build-and-push:
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
     permissions:
-      content: read
+      contents: read
       packages: write
 
     steps:
@@ -25,7 +26,7 @@ jobs:
       - name: Login into repository
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}g
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
