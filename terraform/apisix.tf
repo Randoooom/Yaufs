@@ -10,7 +10,7 @@ resource "kubectl_manifest" "certs" {
     "kind"       = "Certificate"
     "metadata"   = {
       "name"      = "apisix"
-      "namespace" = "default"
+      "namespace" = var.apisix_namespace
     }
     "spec" = {
       "commonName" = var.host
@@ -20,7 +20,7 @@ resource "kubectl_manifest" "certs" {
       ]
       "issuerRef" = {
         "name" = "vault-issuer"
-        "type" = "ClusterIssuer"
+        "kind" = "ClusterIssuer"
       }
       "secretName" = "apisix-tls"
     }
@@ -199,7 +199,7 @@ resource "kubectl_manifest" "tls" {
       ]
       "secret" = {
         "name"      = "apisix-tls"
-        "namespace" = "default"
+        "namespace" = var.apisix_namespace
       }
     }
   })

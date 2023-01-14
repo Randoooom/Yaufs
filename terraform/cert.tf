@@ -18,7 +18,7 @@ resource "helm_release" "cert-manager" {
   }
 }
 
-resource "kubernetes_service_account_v1" "vault_issuer" {
+resource "kubernetes_service_account" "vault_issuer" {
   depends_on = [helm_release.cert-manager]
 
   metadata {
@@ -28,7 +28,7 @@ resource "kubernetes_service_account_v1" "vault_issuer" {
 }
 
 resource "kubectl_manifest" "issuer_secret" {
-  depends_on = [helm_release.cert-manager, kubernetes_service_account_v1.vault_issuer]
+  depends_on = [helm_release.cert-manager, kubernetes_service_account.vault_issuer]
   yaml_body  = file("${path.module}/config/issuer-secret.yaml")
 }
 

@@ -1,0 +1,3 @@
+DEFINE TABLE migration SCHEMALESS;
+    DEFINE FIELD version     on migration TYPE string ASSERT $value IS NOT NULL;
+    DEFINE FIELD created_at  on migration TYPE datetime VALUE time::now();

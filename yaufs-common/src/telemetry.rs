@@ -1,3 +1,5 @@
+use opentelemetry::global;
+use opentelemetry::sdk::propagation::TraceContextPropagator;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
@@ -6,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 /// (observability and metrics).
 #[allow(dead_code)]
 pub fn init_tracing(service_name: &'static str) {
+    global::set_text_map_propagator(TraceContextPropagator::new());
     let tracer = opentelemetry_jaeger::new_agent_pipeline()
         .with_service_name(service_name)
         .install_batch(opentelemetry::runtime::Tokio)
@@ -21,8 +24,8 @@ pub fn init_tracing(service_name: &'static str) {
 }
 
 #[macro_export]
-macro_rules! init {
+macro_rules! init_telemetry {
     () => {
-        $crate::init_tracing(env!("CARGO_PKG_NAME"))
+        $crate::telemetry::init_tracing(env!("CARGO_PKG_NAME"))
     };
 }
