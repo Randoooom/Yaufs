@@ -68,22 +68,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     SURREALDB
         .connect::<Ws>(
             std::env::var(SURREALDB_ENDPOINT)
-                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_ENDPOINT)),
+                .unwrap_or_else(|_| panic!("Missing {SURREALDB_ENDPOINT} env variable")),
         )
         .await?;
     SURREALDB
         .signin(Root {
             username: std::env::var(SURREALDB_USERNAME)
-                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_USERNAME))
+                .unwrap_or_else(|_| panic!("Missing {SURREALDB_USERNAME} env variable"))
                 .as_str(),
             password: std::env::var(SURREALDB_PASSWORD)
-                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_PASSWORD))
+                .unwrap_or_else(|_| panic!("Missing {SURREALDB_PASSWORD} env variable"))
                 .as_str(),
         })
         .await?;
 
     // start tonic serve on specified address
-    info!("Starting grpc server on {}", ADDRESS);
+    info!("Starting grpc server on {ADDRESS}");
     let tower_layer = tower::ServiceBuilder::new()
         .layer(TraceLayer::new_for_grpc())
         .into_inner();
