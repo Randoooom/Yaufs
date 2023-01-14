@@ -6,7 +6,7 @@ on:
       - "main"
     paths:
       - "yaufs-template-service/**/*"
-      - ".github/workflows/tempalte-service-nightly.yaml"
+      - ".github/workflows/template-service-nightly.yaml"
 
 env:
   REGISTRY: ghcr.io
