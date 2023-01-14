@@ -1,49 +1,10 @@
-resource "kubectl_manifest" "issuer_secret" {
-  depends_on = [helm_release.cert-manager]
-  yaml_body  = file("${path.module}/config/issuer-secret.yaml")
-}
-
 data "local_file" "vault_ca" {
   filename   = "${path.module}/output/vault.ca"
   depends_on = [null_resource.vault_init]
 }
 
-resource "kubectl_manifest" "issuer" {
-  depends_on = [helm_release.cert-manager, kubectl_manifest.issuer_secret]
-  yaml_body  = yamlencode({
-    "apiVersion" = "cert-manager.io/v1"
-    "kind"       = "Issuer"
-    "metadata"   = {
-      "name"      = "vault-issuer"
-      "namespace" = "default"
-    }
-    "spec" = {
-      "vault" = {
-        "auth" = {
-          "kubernetes" = {
-            "mountPath" = "/v1/auth/kubernetes"
-            "role"      = "issuer"
-            "secretRef" = {
-              "key"  = "token"
-              "name" = "issuer-token-lmzpj"
-            }
-          }
-        }
-        "caBundle" = data.local_file.vault_ca.content_base64
-        "path"     = "pki/sign/apisix"
-        "server"   = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
-      }
-    }
-  })
-}
-
-resource "time_sleep" "wait_for_issuer" {
-  depends_on      = [kubectl_manifest.issuer]
-  create_duration = "10s"
-}
-
 resource "kubectl_manifest" "certs" {
-  depends_on = [helm_release.cert-manager, kubectl_manifest.issuer, time_sleep.wait_for_issuer]
+  depends_on = [helm_release.cert-manager, kubectl_manifest.issuer]
   yaml_body  = yamlencode({
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "Certificate"
@@ -59,6 +20,7 @@ resource "kubectl_manifest" "certs" {
       ]
       "issuerRef" = {
         "name" = "vault-issuer"
+        "type" = "ClusterIssuer"
       }
       "secretName" = "apisix-tls"
     }

@@ -65,8 +65,8 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki/roles/linkerd \
   key_type="ec" \
   max_ttl=8760h
 
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki/roles/apisix \
-  allowed_domains="$HOST" \
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki/roles/cluster \
+  allowed_domains="$HOST,svc.cluster.local" \
   allow_subdomains=true \
   allow_bare_domains=true \
   max_ttl=72h
@@ -75,13 +75,14 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki_int/config/urls \
   issuing_certificates="http://vault.$VAULT_NAMESPACE.svc.cluster.local:8200/v1/pki/ca" \
   crl_distribution_points="http://vault.$VAULT_NAMESPACE.svc.cluster.local:8200/v1/pki/crl"
 
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault secrets enable -path connect-root pki
-
 echo "Allow Kubernetes authentication"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault auth enable kubernetes
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c '
     vault write auth/kubernetes/config \
     kubernetes_host=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT'
+
+echo "Enabling kv storage for yaufs"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault secrets enable -path=yaufs -version=1 kv
 
 echo "Applying basic policies"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write prometheus-metrics - << EOF
@@ -90,27 +91,37 @@ path "/sys/metrics" {
 }
 EOF'
 
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write pki-apisix - <<EOF
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write pki-cluster - <<EOF
 path "pki*"                        { capabilities = ["read", "list"] }
-path "pki/sign/apisix"    { capabilities = ["create", "update"] }
-path "pki/issue/apisix"   { capabilities = ["create"] }
+path "pki/sign/cluster"    { capabilities = ["create", "update"] }
+path "pki/issue/cluster"   { capabilities = ["create"] }
 EOF'
 
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write pki-linkerd - <<EOF
 path "pki/root/sign-intermediate"   { capabilities = ["create", "update"] }
 EOF'
 
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write template-service - <<EOF
+path "yaufs/template/*"   { capabilities = ["create", "update", "read"] }
+EOF'
+
 echo "Creating authentication roles"
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/issuer \
-  bound_service_account_names=issuer \
-  bound_service_account_namespaces=default \
-  policies="pki-apisix" \
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/vault-issuer \
+  bound_service_account_names="vault-issuer" \
+  bound_service_account_namespaces="cert-manager" \
+  policies="pki-cluster" \
   ttl=1h
 
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/linkerd-issuer \
   bound_service_account_names=linkerd-issuer \
   bound_service_account_namespaces="$LINKERD_NAMESPACE" \
   policies="pki-linkerd" \
+  ttl=1h
+
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/template-service \
+  bound_service_account_names=template-service \
+  bound_service_account_namespaces=template-service \
+  policies="template-service" \
   ttl=1h
 
 PROMETHEUS_VAULT_TOKEN=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault token create \
@@ -121,11 +132,12 @@ kubectl create secret generic prometheus-vault-token -n prometheus --from-litera
 
 echo "Executing scripts/oidc.sh"
 ./scripts/oidc.sh "$HOST" "$VAULT_NAMESPACE" "$LINKERD_NAMESPACE"
-
 echo "Vault setup completed"
 
-echo "Creating serviceaccount for cert-manager"
-kubectl create serviceaccount -n default issuer
+echo "Initiating kv for yaufs-services"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write yaufs/template/surrealdb \
+  username="$(openssl rand -base64 16)" \
+  password="$(openssl rand -base64 32)"
 
 echo "Setup finished"
 echo "Vault credentials saved to vault.json"

@@ -70,3 +70,10 @@ kubectl create secret generic vault-ha-tls \
   --from-file=vault.key=output/vault.key \
   --from-file=vault.crt=output/vault.crt \
   --from-file=vault.ca=output/vault.ca
+
+echo "Cleaning up"
+rm output/csr.yaml
+rm output/vault-csr.conf
+rm output/vault.key
+rm output/vault.crt
+rm output/vault.csr

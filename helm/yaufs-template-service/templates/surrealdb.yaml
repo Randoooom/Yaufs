@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.surrealdb.name }}
+  labels:
+    app: {{ .Values.surrealdb.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.surrealdb.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.surrealdb.name }}
+      annotations:
+        linkerd.io/inject: "true"
+        {{- range $key, $value := $.Values.surrealdb.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+    spec:
+      serviceAccountName: template-service
+      containers:
+        - image: {{ .Values.surrealdb.image }}
+          name: surrealdb
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          command: [ "/surreal" ]
+          args: [ "start", "--user", "root", "--pass", "root" ]
+          livenessProbe:
+            httpGet:
+              port: 8000
+              path: /health
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              port: 8000
+              path: /health
+            initialDelaySeconds: 5
+            periodSeconds: 5

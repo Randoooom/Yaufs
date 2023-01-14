@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    app: {{ .Values.name }}
+  annotations:
+    sidecar.jaegertracing.io/inject: "true"
+    {{- range $key, $value := $.Values.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+      annotations:
+        vault.hashicorp.com/agent-inject: 'true'
+        vault.hashicorp.com/ca-cert: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        vault.hashicorp.com/agent-inject-secret-surrealdb: /yaufs/template/surrealdb
+        vault.hashicorp.com/role: 'template-service'
+        vault.hashicorp.com/agent-inject-template-foo: |
+          {{ "{{" }}- with secret "database/creds/db-app" -}}
+          {{ "{{" }} .Data.username }}
+          {{ "{{" }} .Data.password }}
+          {{ "{{" }}- end }}
+        linkerd.io/inject: "true"
+        {{- range $key, $value := $.Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+    spec:
+      serviceAccountName: template-service
+      containers:
+        - image: {{ .Values.image }}
+          name: template-service
+          env:
+            - name: SURREALDB_ENDPOINT
+              value: "surrealdb.template-service.svc.cluster.local:8000"
+            - name: RUST_LOG
+              value: {{ .Values.logLevel }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            grpc:
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            grpc:
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      initContainers:
+        - name: init-surrealdb
+          image: busybox:1.28
+          command: [ 'sh', '-c', "until nslookup surrealdb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for surrealdb; sleep 2; done; sleep 30" ]

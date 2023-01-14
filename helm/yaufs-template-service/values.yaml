@@ -1,0 +1,16 @@
+logLevel: Debug
+name: yaufs-template-service
+image: ghcr.io/randoooom/yaufs-template-service:nightly
+annotations:
+podAnnotations:
+
+service:
+  name: yaufs-template-service
+  type: ClusterIP
+
+surrealdb:
+  name: surrealdb
+  image: surrealdb/surrealdb:nightly
+  podAnnotations:
+  service:
+    type: ClusterIP
