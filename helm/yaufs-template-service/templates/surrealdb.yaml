@@ -41,7 +41,7 @@ spec:
           ports:
             - containerPort: 8000
           command: [ "/surreal" ]
-          args: [ "start", "--user", "root", "--pass", "root" ]
+          args: [ "start"]
           livenessProbe:
             httpGet:
               port: 8000
