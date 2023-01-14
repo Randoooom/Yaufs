@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate async_trait;
@@ -54,9 +53,9 @@ impl TemplateService for TemplateServiceContext {
     }
 }
 
-const ADDRESS: &'static str = "0.0.0.0:8000";
+const ADDRESS: &str = "0.0.0.0:8000";
 pub static SURREALDB: Surreal<Client> = Surreal::init();
-const SURREALDB_ENDPOINT: &'static str = "SURREALDB_ENDPOINT";
+const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
