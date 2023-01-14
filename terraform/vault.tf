@@ -80,7 +80,11 @@ EOF
         }
       }
       "injector" = {
+        "enabled" = false
+      }
+      "csi" = {
         "enabled" = true
+        "extraArgs" = ["-vault-tls-ca-cert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"]
       }
     }
     )
@@ -92,6 +96,20 @@ resource "null_resource" "vault_setup" {
 
   provisioner "local-exec" {
     command = "chmod +x scripts/setup.sh; chmod +x scripts/oidc.sh; /bin/bash scripts/setup.sh ${var.host} ${var.vault_namespace} ${var.linkerd_namespace}"
+  }
+}
+
+resource "helm_release" "csi_driver" {
+  depends_on = [null_resource.vault_setup]
+  name       = "csi-driver"
+  namespace  = var.vault_namespace
+
+  repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
+  chart = "secrets-store-csi-driver"
+
+  set {
+    name = "syncSecret.enabled"
+    value = true
   }
 }
 

@@ -1,0 +1,24 @@
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: vault-template
+spec:
+  provider: vault
+  secretObjects:
+    - data:
+        - key: password
+          objectName: surrealdb-password
+        - key: username
+          objectName: surrealdb-username
+      secretName: surrealdb-credentials
+      type: Opaque
+  parameters:
+    vaultAddress: "https://vault.vault.svc.cluster.local:8200"
+    roleName: "template-service"
+    objects: |
+      - objectName: "surrealdb-password"
+        secretPath: "yaufs/template/surrealdb"
+        secretKey: "password"
+      - objectName: "surrealdb-username"
+        secretPath: "yaufs/template/surrealdb"
+        secretKey: "username"

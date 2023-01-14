@@ -19,6 +19,8 @@ resource "helm_release" "cert-manager" {
 }
 
 resource "kubernetes_service_account_v1" "vault_issuer" {
+  depends_on = [helm_release.cert-manager]
+
   metadata {
     name      = "vault-issuer"
     namespace = var.cert_manager_namespace

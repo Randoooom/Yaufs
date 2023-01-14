@@ -18,15 +18,6 @@ spec:
       labels:
         app: {{ .Values.name }}
       annotations:
-        vault.hashicorp.com/agent-inject: 'true'
-        vault.hashicorp.com/ca-cert: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-        vault.hashicorp.com/agent-inject-secret-surrealdb: /yaufs/template/surrealdb
-        vault.hashicorp.com/role: 'template-service'
-        vault.hashicorp.com/agent-inject-template-foo: |
-          {{ "{{" }}- with secret "database/creds/db-app" -}}
-          {{ "{{" }} .Data.username }}
-          {{ "{{" }} .Data.password }}
-          {{ "{{" }}- end }}
         linkerd.io/inject: "true"
         {{- range $key, $value := $.Values.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
@@ -41,6 +32,20 @@ spec:
               value: "surrealdb.template-service.svc.cluster.local:8000"
             - name: RUST_LOG
               value: {{ .Values.logLevel }}
+            - name: SURREALDB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: surrealdb-credentials
+                  key: username
+            - name: SURREALDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: surrealdb-credentials
+                  key: password
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -58,3 +63,10 @@ spec:
         - name: init-surrealdb
           image: busybox:1.28
           command: [ 'sh', '-c', "until nslookup surrealdb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for surrealdb; sleep 2; done; sleep 30" ]
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "vault-template"

@@ -56,6 +56,8 @@ impl TemplateService for TemplateServiceContext {
 const ADDRESS: &str = "0.0.0.0:8000";
 pub static SURREALDB: Surreal<Client> = Surreal::init();
 const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
+const SURREALDB_USERNAME: &str = "SURREALDB_USERNAME";
+const SURREALDB_PASSWORD: &str = "SURREALDB_PASSWORD";
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -65,14 +67,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // connect to the surrealdb instance
     SURREALDB
         .connect::<Ws>(
-            std::env::var(SURREALDB_ENDPOINT).expect("Missing SURREALDB_ENDPOINT env variable"),
+            std::env::var(SURREALDB_ENDPOINT)
+                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_ENDPOINT)),
         )
         .await?;
-    // TODO: integrate vault storage
     SURREALDB
         .signin(Root {
-            username: "root",
-            password: "root",
+            username: std::env::var(SURREALDB_USERNAME)
+                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_USERNAME))
+                .as_str(),
+            password: std::env::var(SURREALDB_PASSWORD)
+                .unwrap_or_else(|_| panic!("Missing {} env variable", SURREALDB_PASSWORD))
+                .as_str(),
         })
         .await?;
 

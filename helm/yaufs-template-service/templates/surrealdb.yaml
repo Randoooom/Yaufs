@@ -23,6 +23,21 @@ spec:
         - image: {{ .Values.surrealdb.image }}
           name: surrealdb
           imagePullPolicy: Always
+          env:
+            - name: USER
+              valueFrom:
+                secretKeyRef:
+                  name: surrealdb-credentials
+                  key: username
+            - name: PASS
+              valueFrom:
+                secretKeyRef:
+                  name: surrealdb-credentials
+                  key: password
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
           ports:
             - containerPort: 8000
           command: [ "/surreal" ]
@@ -39,3 +54,10 @@ spec:
               path: /health
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "vault-template"
