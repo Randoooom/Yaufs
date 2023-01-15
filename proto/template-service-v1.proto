@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package template_service_v1;
 
-service TemplateService {
+service TemplateServiceV1 {
   rpc GetTemplate(TemplateId) returns (Template) {}
 
   rpc ListTemplates(ListTemplatesMessage) returns (TemplateList) {}
@@ -16,7 +16,9 @@ message TemplateId {
   string id = 1;
 }
 
-message ListTemplatesMessage {}
+message ListTemplatesMessage {
+  optional string query = 1;
+}
 
 message TemplateList {
   repeated Template templates = 1;

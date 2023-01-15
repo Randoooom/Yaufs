@@ -17,7 +17,7 @@
 use crate::SURREALDB;
 use surrealdb::engine::remote::ws::Ws;
 use surrealdb::opt::auth::Root;
-use surrealdb::sql;
+// use surrealdb::sql;
 
 const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
 const SURREALDB_USERNAME: &str = "SURREALDB_USERNAME";
@@ -47,12 +47,14 @@ pub async fn connect() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn migrate() -> Result<(), Box<dyn std::error::Error>> {
-    // initiate the migration table and fetch possibly already existing records
-    SURREALDB
-        .query(sql!(include_str!("surrealql/migration.surrealql")))
-        .query("")
-        .await?;
-
-    Ok(())
-}
+// async fn migrate() -> Result<(), Box<dyn std::error::Error>> {
+//     // initiate the migration table and fetch possibly already existing records
+//     let mut responses = SURREALDB
+//         .query(sql!(include_str!("surrealql/migration.surrealql")))
+//         .query("SELECT version as result FROM migration ORDER BY created_at DESC LIMIT 1")
+//         .await?;
+//     // take the last as response, which contains the last migrated version
+//     let last = responses.take::<String>(1)?;
+//
+//     Ok(())
+// }

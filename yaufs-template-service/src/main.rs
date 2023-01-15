@@ -21,45 +21,12 @@ extern crate async_trait;
 extern crate tracing;
 
 use crate::prelude::*;
-use crate::proto::template_service_server::{TemplateService, TemplateServiceServer};
 use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use tonic::transport::Server;
 
 mod database;
-
-pub struct TemplateServiceContext;
-
-#[tonic::async_trait]
-impl TemplateService for TemplateServiceContext {
-    async fn get_template(
-        &self,
-        _request: Request<TemplateId>,
-    ) -> Result<Response<Template>, Status> {
-        todo!()
-    }
-
-    async fn list_templates(
-        &self,
-        request: Request<ListTemplatesMessage>,
-    ) -> Result<Response<TemplateList>, Status> {
-        Ok(Response::new(TemplateList { templates: vec![] }))
-    }
-
-    async fn delete_template(
-        &self,
-        _request: Request<TemplateId>,
-    ) -> Result<Response<Template>, Status> {
-        todo!()
-    }
-
-    async fn create_template(
-        &self,
-        _request: Request<CreateTemplateMessage>,
-    ) -> Result<Response<Template>, Status> {
-        todo!()
-    }
-}
+mod v1;
 
 const ADDRESS: &str = "0.0.0.0:8000";
 pub static SURREALDB: Surreal<Client> = Surreal::init();
@@ -83,12 +50,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     Server::builder()
         .layer(tower_layer)
-        .add_service(
-            yaufs_common::tonic::init_health::<TemplateServiceServer<TemplateServiceContext>>()
-                .await,
-        )
+        .add_service(yaufs_common::tonic::init_health::<v1::Server>().await)
         .add_service(reflection)
-        .add_service(TemplateServiceServer::new(TemplateServiceContext))
+        .add_service(v1::new())
         .serve(ADDRESS.parse().unwrap())
         .await?;
 
@@ -96,6 +60,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub mod prelude {
-    pub use crate::proto::*;
     pub use tonic::{Request, Response, Status};
+    pub use yaufs_common::proto::template_service_v1::*;
 }
