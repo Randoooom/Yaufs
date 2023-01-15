@@ -13,7 +13,7 @@ spec:
       labels:
         app: {{ .Values.surrealdb.name }}
       annotations:
-        linkerd.io/inject: "true"
+        linkerd.io/inject: "enabled"
         {{- range $key, $value := $.Values.surrealdb.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}

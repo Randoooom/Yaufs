@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package template_service;
+package template_service_v1;
 
 service TemplateService {
   rpc GetTemplate(TemplateId) returns (Template) {}

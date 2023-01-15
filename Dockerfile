@@ -13,8 +13,7 @@ RUN rustup default nightly
 RUN cargo new --bin yaufs-template-service
 WORKDIR ./yaufs-template-service
 COPY --from=template-service-preperation Cargo.toml ./Cargo.toml
-COPY ./yaufs-monitoring ../yaufs-monitoring
-COPY ./yaufs-tonic ../yaufs-tonic
+COPY ./yaufs-common ../yaufs-common
 RUN cargo build --release
 
 # build the lib

@@ -11,8 +11,8 @@ tower-http = { version = "0.3.5", features = ["trace"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
+opentelemetry-http = "0.7.0"
 tracing = "0.1.37"
-nanoid = "0.4.0"
 tonic = "0.8.3"
 tonic-health = "0.8.0"
 opentelemetry = "0.18.0"

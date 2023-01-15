@@ -18,7 +18,7 @@ spec:
       labels:
         app: {{ .Values.name }}
       annotations:
-        linkerd.io/inject: "true"
+        linkerd.io/inject: "enabled"
         {{- range $key, $value := $.Values.podAnnotations }}
         {{ $key }}: {{ $value | quote }}
         {{- end }}

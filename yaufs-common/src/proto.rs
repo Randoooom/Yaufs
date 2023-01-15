@@ -14,6 +14,8 @@
  *    limitations under the License.
  */
 
-pub mod proto;
-pub mod telemetry;
-pub mod tonic;
+pub mod template_service_v1 {
+    tonic::include_proto!("template_service");
+    pub const FILE_DESCRIPTOR_SET: &[u8] =
+        tonic::include_file_descriptor_set!("template_service_descriptor");
+}

@@ -102,7 +102,7 @@ resource "helm_release" "apisix" {
           "export_uri"           = "/apisix/prometheus/metrics"
         }
         "opentelemetry" = {
-          "trace_id_source" = "random"
+          "trace_id_source" = "x-request-id"
           "resource"        = {
             "service.name" = "APISIX"
           }

@@ -6,7 +6,5 @@ yaufs-apisix-request-id/
 .git/
 .idea/
 
-yaufs-monitoring/target/
+yaufs-common/target/
 yaufs-template-service/target/
-yaufs-control-service/target/
-yaufs-tonic/target/

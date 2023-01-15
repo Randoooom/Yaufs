@@ -163,8 +163,10 @@ resource "kubectl_manifest" "monitoring_apisix" {
                 "sampler" = {
                   "name" = "always_on"
                 }
+                "additional_attributes" = ["route_id", "http_header"]
+                "additional_header_prefix_attributes" = ["x-request-id"]
               }
-              "name" = "opentelemetry"
+              "name"   = "opentelemetry"
               "enable" = true
             }
           ],

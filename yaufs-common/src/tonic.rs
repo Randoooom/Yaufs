@@ -1,5 +1,21 @@
-use opentelemetry::trace::TraceId;
-use opentelemetry::Context;
+/*
+ *    Copyright  2023.  Fritz Ochsmann
+ *
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ */
+
+use opentelemetry::global;
+use opentelemetry_http::HeaderExtractor;
 use std::time::Duration;
 use tonic::codegen::http::Request;
 use tonic::server::NamedService;
@@ -9,10 +25,6 @@ use tower_http::classify::{GrpcErrorsAsFailures, SharedClassifier};
 use tower_http::trace::{MakeSpan, TraceLayer};
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-
-const TRACE_ALPHABET: [char; 16] = [
-    '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f',
-];
 
 fn twiddle_service_status<S>(mut reporter: HealthReporter)
 where
@@ -49,27 +61,19 @@ where
 pub struct MakeYaufsTonicSpan;
 impl<B> MakeSpan<B> for MakeYaufsTonicSpan {
     fn make_span(&mut self, request: &Request<B>) -> Span {
-        let headers = request.headers();
-        let method = request.method().as_str();
-        let uri = request.uri();
-
-        // try to access the x-request-id header otherwise generate a new traceid
-        let trace_id = headers
-            .get("x-request-id")
-            .and_then(|value| value.to_str().ok().and_then(|v| Some(v.to_string())))
-            .unwrap_or_else(|| nanoid::nanoid!(32, &TRACE_ALPHABET));
-
         // make the span
         let span = tracing::info_span!(
             "GRPC Request",
-            method = method,
+            method = request.method().as_str(),
             rpc.system = "grpc",
-            uri = %uri,
+            uri = %request.uri(),
             version = ?request.version(),
             headers = ?request.headers(),
-            trace_id = trace_id,
         );
-        println!("{:?}", Context::current());
+        let context = global::get_text_map_propagator(|propagator| {
+            propagator.extract(&HeaderExtractor(request.headers()))
+        });
+        span.set_parent(context);
 
         span
     }
