@@ -25,7 +25,6 @@ use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use tonic::transport::Server;
 
-mod database;
 mod v1;
 
 const ADDRESS: &str = "0.0.0.0:8000";
@@ -37,7 +36,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     yaufs_common::init_telemetry!();
 
     // connect to the surrealdb instance
-    database::connect().await?;
+    yaufs_common::database::surrealdb::connect(
+        &SURREALDB,
+        include_str!("./surrealql/up.surrealql"),
+    )
+    .await?;
 
     // start tonic serve on specified address
     info!("Starting grpc server on {ADDRESS}");

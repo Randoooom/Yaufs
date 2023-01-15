@@ -14,18 +14,21 @@
  *    limitations under the License.
  */
 
-use crate::SURREALDB;
-use surrealdb::engine::remote::ws::Ws;
+use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
-// use surrealdb::sql;
+// use surrealdb::{sql, Connection, Surreal};
+use surrealdb::Surreal;
 
 const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
 const SURREALDB_USERNAME: &str = "SURREALDB_USERNAME";
 const SURREALDB_PASSWORD: &str = "SURREALDB_PASSWORD";
 
-pub async fn connect() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn connect(
+    client: &'static Surreal<Client>,
+    up: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     // establish the connection
-    SURREALDB
+    client
         .connect::<Ws>(
             std::env::var(SURREALDB_ENDPOINT)
                 .unwrap_or_else(|_| panic!("Missing {SURREALDB_ENDPOINT} env variable")),
@@ -33,7 +36,7 @@ pub async fn connect() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // authenticate
-    SURREALDB
+    client
         .signin(Root {
             username: std::env::var(SURREALDB_USERNAME)
                 .unwrap_or_else(|_| panic!("Missing {SURREALDB_USERNAME} env variable"))
@@ -44,12 +47,19 @@ pub async fn connect() -> Result<(), Box<dyn std::error::Error>> {
         })
         .await?;
 
+    // execute the up queries
+    client.query(up).await?;
+
     Ok(())
 }
 
-// async fn migrate() -> Result<(), Box<dyn std::error::Error>> {
+// pub async fn migrate(
+//     client: &'static Surreal<Client>,
+//     init: &str,
+//     migrations: Vec<(&str, &str)>,
+// ) -> Result<(), Box<dyn std::error::Error>> {
 //     // initiate the migration table and fetch possibly already existing records
-//     let mut responses = SURREALDB
+//     let mut responses = client
 //         .query(sql!(include_str!("surrealql/migration.surrealql")))
 //         .query("SELECT version as result FROM migration ORDER BY created_at DESC LIMIT 1")
 //         .await?;

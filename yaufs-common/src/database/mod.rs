@@ -14,7 +14,4 @@
  *    limitations under the License.
  */
 
-pub mod database;
-pub mod proto;
-pub mod telemetry;
-pub mod tonic;
+pub mod surrealdb;
