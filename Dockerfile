@@ -16,12 +16,11 @@ COPY --from=template-service-preperation Cargo.toml ./Cargo.toml
 COPY ./yaufs-common ../yaufs-common
 RUN cargo build --release
 
-# build the lib
+# build the binary
 RUN rm -rf ./src/*
 RUN rm -rf ./target/release/deps/yaufs_template_service*
 COPY ./yaufs-template-service/Cargo.toml ./Cargo.toml
 COPY ./yaufs-template-service/src ./src
-COPY ./yaufs-template-service/build.rs ./build.rs
 COPY ./proto ../proto
 
 RUN cargo build --release
