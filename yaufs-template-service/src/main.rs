@@ -41,6 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         include_str!("./surrealql/up.surrealql"),
     )
     .await?;
+    // execute possible migrations
+    yaufs_common::database::surrealdb::migrate(&SURREALDB, env!("CARGO_PKG_VERSION"), vec![])
+        .await?;
 
     // start tonic serve on specified address
     info!("Starting grpc server on {ADDRESS}");
