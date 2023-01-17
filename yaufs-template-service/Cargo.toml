@@ -14,6 +14,7 @@ tokio = { version = "1.23.0", features = ["full"] }
 serde = { version = "1.0.152", features = ["derive"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
 
+cfg-if = "1.0.0"
 tower = "0.4.13"
 tonic-reflection = "0.6.0"
 tonic = "0.8.3"
@@ -21,3 +22,6 @@ openidconnect = "2.4.0"
 async-trait = "0.1.60"
 tracing = "0.1.37"
 thiserror = "1.0.38"
+
+[dev-dependencies]
+yaufs-common = { path = "../yaufs-common", features = ["testing"] }

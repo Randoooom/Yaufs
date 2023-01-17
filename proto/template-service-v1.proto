@@ -1,38 +1,42 @@
 syntax = "proto3";
+import "google/protobuf/timestamp.proto";
 
 package template_service_v1;
 
 service TemplateServiceV1 {
   rpc GetTemplate(TemplateId) returns (Template) {}
 
-  rpc ListTemplates(ListTemplatesMessage) returns (TemplateList) {}
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse) {}
 
-  rpc DeleteTemplate(TemplateId) returns (Template) {}
+  rpc DeleteTemplate(TemplateId) returns (Empty) {}
 
-  rpc CreateTemplate(CreateTemplateMessage) returns (Template) {}
+  rpc CreateTemplate(CreateTemplateRequest) returns (Template) {}
 }
 
 message TemplateId {
   string id = 1;
 }
 
-message ListTemplatesMessage {
-  optional string query = 1;
+message ListTemplatesRequest {
+  uint32 page_size = 2;
+  string page_token = 3;
 }
 
-message TemplateList {
+message ListTemplatesResponse {
   repeated Template templates = 1;
+  string next_page_token = 2;
 }
 
 message Template {
   string id = 1;
   string name = 2;
   string image = 3;
-  uint64 created_at = 4;
-  uint64 updated_at = 5;
+  string created_at = 4;
 }
 
-message CreateTemplateMessage {
+message CreateTemplateRequest {
   string name = 1;
   string image = 2;
 }
+
+message Empty {}

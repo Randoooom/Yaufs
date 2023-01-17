@@ -13,27 +13,28 @@ env:
   IMAGE_NAME: ghcr.io/randoooom/yaufs-template-service
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Install rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: test
-        run: cargo test
-        working-directory: yaufs-template-service
+# todo: start surrealdb instance
+#  test:
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Install rust toolchain
+#        uses: actions-rs/toolchain@v1
+#        with:
+#          profile: minimal
+#          toolchain: nightly
+#          override: true
+#
+#      - name: Install Protoc
+#        uses: arduino/setup-protoc@v1
+#        with:
+#          repo-token: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: test
+#        run: cargo test
+#        working-directory: yaufs-template-service
 
   lint:
     runs-on: ubuntu-latest

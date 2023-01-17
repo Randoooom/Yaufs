@@ -1,1 +1,5 @@
-CREATE SCHEMA
+DEFINE TABLE template SCHEMAFULL;
+    DEFINE FIELD version     on TABLE template TYPE string   ASSERT $value IS NOT NULL;
+    DEFINE FIELD image       on TABLE template TYPE string   ASSERT $value IS NOT NULL;
+    DEFINE FIELD name        on TABLE template TYPE string   ASSERT $value IS NOT NULL;
+    DEFINE FIELD created_at  on TABLE template TYPE datetime VALUE time::now();

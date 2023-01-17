@@ -9,7 +9,11 @@ tokio = { version = "1.24.1", features = ["rt"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+serde = { version = "1.0.152", features = ["derive"] }
+nanoid = { version = "0.4.0", optional = true }
 
+thiserror = "1.0.38"
+cfg-if = "1.0.0"
 version-compare = "0.1.1"
 opentelemetry-http = "0.7.0"
 tracing = "0.1.37"
@@ -21,3 +25,6 @@ prost = "0.11.6"
 
 [build-dependencies]
 tonic-build = "0.8.4"
+
+[features]
+testing = ["dep:nanoid"]

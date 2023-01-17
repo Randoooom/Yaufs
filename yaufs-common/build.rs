@@ -20,6 +20,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     tonic_build::configure()
         .file_descriptor_set_path(out_dir.join("template_service_v1_descriptor.bin"))
+        .type_attribute("CreateTemplateRequest", "#[derive(serde::Serialize)]")
+        .type_attribute(
+            "Template",
+            "#[derive(serde::Serialize, serde::Deserialize)]",
+        )
         .compile(&["../proto/template-service-v1.proto"], &["../proto"])?;
     Ok(())
 }

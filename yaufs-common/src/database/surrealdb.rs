@@ -16,7 +16,6 @@
 
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
-// use surrealdb::{sql, Connection, Surreal};
 use surrealdb::{sql, Surreal};
 use version_compare::{Cmp, Version};
 
@@ -28,6 +27,9 @@ pub async fn connect(
     client: &'static Surreal<Client>,
     up: &'static str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!("{up}");
+    tracing::info!("{}", sql::parse(up).unwrap().to_string());
+
     // establish the connection
     client
         .connect::<Ws>(
@@ -50,8 +52,27 @@ pub async fn connect(
         .await?;
     tracing::info!("Authenticated with surrealdb");
 
+    // use namespace and database
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "testing")] {
+            let db = nanoid::nanoid!();
+            tracing::info!("Using database {db}");
+
+            client
+                .use_ns("test")
+                .use_db(db)
+                .await?;
+        } else {
+            client
+                .use_ns("production")
+                .use_db("template-service")
+                .await?;
+        }
+    }
+
     // execute the up queries
-    client.query(up).await?;
+    client.query(sql::parse(up)?).await?;
+    tracing::info!("Initiated tables");
 
     Ok(())
 }
@@ -63,17 +84,17 @@ pub async fn migrate(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // initiate the migration table and fetch possibly already existing records
     let mut responses = client
+        .query(
+            "DEFINE TABLE migration SCHEMALESS;
+            DEFINE FIELD version     on TABLE migration TYPE string ASSERT $value IS NOT NULL;
+            DEFINE FIELD created_at  on TABLE migration TYPE datetime VALUE time::now();",
+        )
         .query(sql!(
-            DEFINE TABLE migration SCHEMALESS;
-            DEFINE FIELD version     on migration TYPE string ASSERT $value IS NOT NULL;
-            DEFINE FIELD created_at  on migration TYPE datetime VALUE time::now();
-        ))
-        .query(sql!(
-            SELECT version as result FROM migration ORDER BY created_at DESC LIMIT 1
+            SELECT version, created_at FROM migration ORDER BY created_at DESC LIMIT 1
         ))
         .await?;
     // take the last as response, which contains the last migrated version
-    let last = responses.take::<Option<String>>(1)?;
+    let last = responses.take::<Option<String>>((1, "version"))?;
 
     if let Some(last) = last {
         // only proceed if the  last version is not equal to the current version
@@ -103,4 +124,18 @@ pub async fn migrate(
     }
 
     Ok(())
+}
+
+#[macro_export]
+macro_rules! sql_span {
+    ($expr: expr) => {{
+        let span = info_span!("Surrealdb Request");
+        let _ = span.enter();
+        $expr
+    }};
+    ($expr: expr, $title: expr) => {{
+        let span = info_span!(concat!("Surrealdb Request: ", $title));
+        let _ = span.enter();
+        $expr
+    }};
 }

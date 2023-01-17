@@ -14,8 +14,13 @@
  *    limitations under the License.
  */
 
-pub mod database;
-pub mod error;
-pub mod proto;
-pub mod telemetry;
-pub mod tonic;
+#[macro_export]
+macro_rules! next_page_token {
+    ($vec: ident, $size: expr, $expr: expr) => {
+        if $vec.len() > $size as usize {
+            $vec.split_last().and_then($expr).unwrap_or_default()
+        } else {
+            (String::new(), $vec.to_vec())
+        };
+    };
+}
