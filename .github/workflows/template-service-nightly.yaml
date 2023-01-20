@@ -19,9 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: setup surrealdb
-        run: docker run -d -p 8080:8000 surrealdb/surrealdb:latest start -u root -p root
-
       - name: Install rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -35,12 +32,14 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: test
-        run: cargo test
         working-directory: yaufs-template-service
         env:
           SURREALDB_ENDPOINT: localhost:8080
           SURREALDB_USERNAME: root
           SURREALDB_PASSWORD: root
+        run:  |
+          docker run -d -p 8080:8000 surrealdb/surrealdb:nightly start -u root -p root
+          cargo test
 
   lint:
     runs-on: ubuntu-latest

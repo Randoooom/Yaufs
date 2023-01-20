@@ -27,9 +27,6 @@ pub async fn connect(
     client: &'static Surreal<Client>,
     up: &'static str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("{up}");
-    tracing::info!("{}", sql::parse(up).unwrap().to_string());
-
     // establish the connection
     client
         .connect::<Ws>(
