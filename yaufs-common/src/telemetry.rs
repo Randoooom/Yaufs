@@ -14,9 +14,9 @@
  *    limitations under the License.
  */
 
-#[cfg(not(test))]
+#[cfg(not(feature = "testing"))]
 use opentelemetry::global;
-#[cfg(not(test))]
+#[cfg(not(feature = "testing"))]
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
@@ -42,7 +42,7 @@ pub fn init_tracing(service_name: &'static str) {
         }
     }
 
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    tracing::subscriber::set_global_default(subscriber).ok();
 }
 
 #[macro_export]

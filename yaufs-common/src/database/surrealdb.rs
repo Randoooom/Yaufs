@@ -23,17 +23,13 @@ const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
 const SURREALDB_USERNAME: &str = "SURREALDB_USERNAME";
 const SURREALDB_PASSWORD: &str = "SURREALDB_PASSWORD";
 
-pub async fn connect(
-    client: &'static Surreal<Client>,
-    up: &'static str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn connect(up: &'static str) -> Result<Surreal<Client>, Box<dyn std::error::Error>> {
     // establish the connection
-    client
-        .connect::<Ws>(
-            std::env::var(SURREALDB_ENDPOINT)
-                .unwrap_or_else(|_| panic!("Missing {SURREALDB_ENDPOINT} env variable")),
-        )
-        .await?;
+    let client: Surreal<Client> = Surreal::new::<Ws>(
+        std::env::var(SURREALDB_ENDPOINT)
+            .unwrap_or_else(|_| panic!("Missing {SURREALDB_ENDPOINT} env variable")),
+    )
+    .await?;
     tracing::info!("Established connection to surrealdb");
 
     // authenticate
@@ -71,11 +67,11 @@ pub async fn connect(
     client.query(sql::parse(up)?).await?;
     tracing::info!("Initiated tables");
 
-    Ok(())
+    Ok(client)
 }
 
 pub async fn migrate(
-    client: &'static Surreal<Client>,
+    client: &Surreal<Client>,
     current_version: &'static str,
     migrations: Vec<(&'static str, &'static str)>,
 ) -> Result<(), Box<dyn std::error::Error>> {

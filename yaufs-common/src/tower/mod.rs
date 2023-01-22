@@ -15,9 +15,3 @@
  */
 
 pub mod auth;
-pub mod database;
-pub mod error;
-pub mod proto;
-pub mod telemetry;
-pub mod tonic;
-pub mod tower;

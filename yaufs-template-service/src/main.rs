@@ -27,12 +27,17 @@ use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
+// use yaufs_common::tower::auth::AuthenticationLayer;
 
 mod v1;
 
-#[cfg(not(test))]
-const ADDRESS: &str = "0.0.0.0:8000";
-pub static SURREALDB: Surreal<Client> = Surreal::init();
+cfg_if::cfg_if! {
+    if #[cfg(test)] {
+        const ADDRESS: &str = "127.0.0.1:0";
+    } else {
+        const ADDRESS: &str = "0.0.0.0:8000";
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -45,49 +50,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std::error::Error>> {
     yaufs_common::init_telemetry!();
     // connect to the surrealdb instance
-    yaufs_common::database::surrealdb::connect(
-        &SURREALDB,
-        include_str!("./surrealql/up.surrealql"),
-    )
-    .await?;
+    let surreal =
+        yaufs_common::database::surrealdb::connect(include_str!("./surrealql/up.surrealql"))
+            .await?;
+    let client = surreal.clone();
     // execute possible migrations
-    yaufs_common::database::surrealdb::migrate(&SURREALDB, env!("CARGO_PKG_VERSION"), vec![])
-        .await?;
-
-    cfg_if::cfg_if! {
-        if #[cfg(test)] {
-            let address = "127.0.0.1:0";
-        } else {
-            let address = ADDRESS;
-        }
-    }
+    yaufs_common::database::surrealdb::migrate(&surreal, env!("CARGO_PKG_VERSION"), vec![]).await?;
 
     // start tonic serve on specified address
-    info!("Starting grpc server on {address}");
-    let listener = TcpListener::bind(address).await?;
+    info!("Starting grpc server on {ADDRESS}");
+    let listener = TcpListener::bind(ADDRESS).await?;
     let local_addr = listener.local_addr().unwrap();
     info!("Listening on {}", local_addr);
     let incoming = TcpIncoming::from_listener(listener, true, None).unwrap();
 
     let tower_layer = tower::ServiceBuilder::new()
         .layer(yaufs_common::tonic::trace_layer())
+        // .layer(AuthenticationLayer::from(Some("templating")))
         .into_inner();
     let reflection = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
         .build()
         .unwrap();
-    let join = tokio::spawn(async {
+    let join = tokio::spawn(async move {
         Server::builder()
             .layer(tower_layer)
             .add_service(yaufs_common::tonic::init_health::<v1::Server>().await)
             .add_service(reflection)
-            .add_service(v1::new())
+            .add_service(v1::new(surreal))
             .serve_with_incoming(incoming)
             .await
             .unwrap()
     });
 
-    Ok((format!("ws://{local_addr}"), SURREALDB.clone(), join))
+    Ok((format!("ws://{local_addr}"), client, join))
 }
 
 pub mod prelude {

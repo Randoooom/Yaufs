@@ -20,7 +20,7 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/entity \
 ENTITY_ID=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault read -field=id identity/entity/name/admin)
 echo "Creating oic groups"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write identity/group \
-  name="engineering" \
+  name="templating" \
   member_entity_ids="$ENTITY_ID"
 
 USERPASS_ACCESSOR=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault auth list -detailed -format json | jq -r '.["userpass/"].accessor')

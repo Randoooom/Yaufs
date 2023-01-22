@@ -15,14 +15,18 @@
  */
 
 use crate::prelude::*;
-use crate::SURREALDB;
+use surrealdb::engine::remote::ws::Client;
+use surrealdb::Surreal;
 use yaufs_common::error::{Result, YaufsError};
 
-pub async fn get_template(request: Request<TemplateId>) -> Result<Response<Template>> {
+pub async fn get_template(
+    surreal: &Surreal<Client>,
+    request: Request<TemplateId>,
+) -> Result<Response<Template>> {
     let data = request.into_inner();
 
     // fetch the template
-    let template: Option<Template> = sql_span!(SURREALDB.select(("template", data.id)).await)?;
+    let template: Option<Template> = sql_span!(surreal.select(("template", data.id)).await)?;
 
     Ok(Response::new(
         template.ok_or(YaufsError::NotFound("Template not found"))?,
@@ -30,13 +34,14 @@ pub async fn get_template(request: Request<TemplateId>) -> Result<Response<Templ
 }
 
 pub async fn list_templates(
+    surreal: &Surreal<Client>,
     request: Request<ListTemplatesRequest>,
 ) -> Result<Response<ListTemplatesResponse>> {
     let data = request.into_inner();
 
     // fetch a page of templates
     let templates = sql_span!(
-        SURREALDB
+        surreal
             .query("SELECT * FROM template WHERE name >= $page_token LIMIT $page_size")
             .bind(("page_token", &data.page_token))
             .bind(("page_size", &data.page_size + 1))
@@ -56,20 +61,24 @@ pub async fn list_templates(
     }))
 }
 
-pub async fn delete_template(request: Request<TemplateId>) -> Result<Response<Empty>> {
+pub async fn delete_template(
+    surreal: &Surreal<Client>,
+    request: Request<TemplateId>,
+) -> Result<Response<Empty>> {
     let data = request.into_inner();
 
-    sql_span!(SURREALDB.delete(("template", data.id)).await)?;
+    sql_span!(surreal.delete(("template", data.id)).await)?;
 
     Ok(Response::new(Empty {}))
 }
 
 pub async fn create_template(
+    surreal: &Surreal<Client>,
     request: Request<CreateTemplateRequest>,
 ) -> Result<Response<Template>> {
     let data = request.into_inner();
     // create the template
-    let template: Template = sql_span!(SURREALDB.create("template").content(data).await)?;
+    let template: Template = sql_span!(surreal.create("template").content(data).await)?;
 
     Ok(Response::new(template))
 }

@@ -14,6 +14,8 @@
  *    limitations under the License.
  */
 
+use openidconnect::core::CoreErrorResponseType;
+use openidconnect::{RequestTokenError, StandardErrorResponse, UserInfoError};
 use tonic::Status;
 
 #[derive(thiserror::Error, Debug)]
@@ -24,6 +26,8 @@ pub enum YaufsError {
     Unauthorized,
     #[error(transparent)]
     SurrealdbError(#[from] surrealdb::Error),
+    #[error("{0}")]
+    InternalServerError(String),
 }
 
 pub type Result<T> = std::result::Result<T, YaufsError>;
@@ -38,6 +42,33 @@ impl From<YaufsError> for Status {
             YaufsError::SurrealdbError(_) => {
                 Status::internal("Error occurred while calling database")
             }
+            YaufsError::InternalServerError(_) => {
+                Status::internal("Error occurred while processing the request")
+            }
         }
+    }
+}
+
+macro_rules! from_openid_error {
+    ($error:path) => {
+        impl<T> From<$error> for YaufsError
+        where
+            T: std::fmt::Debug + std::error::Error,
+        {
+            fn from(error: $error) -> Self {
+                tracing::error!("Error occurred: {:?}", error);
+
+                Self::Unauthorized
+            }
+        }
+    };
+}
+
+from_openid_error!(UserInfoError<T>);
+from_openid_error!(RequestTokenError<T, StandardErrorResponse<CoreErrorResponseType>>);
+
+impl From<openidconnect::ConfigurationError> for YaufsError {
+    fn from(error: openidconnect::ConfigurationError) -> Self {
+        Self::InternalServerError(error.to_string())
     }
 }
