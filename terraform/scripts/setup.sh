@@ -66,14 +66,12 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki/roles/linkerd \
   max_ttl=8760h
 
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki/roles/cluster \
-  allowed_domains="$HOST,svc.cluster.local" \
+  allowed_domains="$HOST,svc.cluster.local,*cockroachdb-public*,node,*cockroachdb*,127.0.0.1,root" \
   allow_subdomains=true \
   allow_bare_domains=true \
+  allow_glob_domains=true \
+  allow_localhost=true \
   max_ttl=72h
-
-kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write pki_int/config/urls \
-  issuing_certificates="http://vault.$VAULT_NAMESPACE.svc.cluster.local:8200/v1/pki/ca" \
-  crl_distribution_points="http://vault.$VAULT_NAMESPACE.svc.cluster.local:8200/v1/pki/crl"
 
 echo "Allow Kubernetes authentication"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault auth enable kubernetes
@@ -81,8 +79,9 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c '
     vault write auth/kubernetes/config \
     kubernetes_host=https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT'
 
-echo "Enabling kv storage for yaufs"
+echo "Enabling kv storages"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault secrets enable -path=yaufs -version=1 kv
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault secrets enable -path=zitadel -version=1 kv
 
 echo "Applying basic policies"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write prometheus-metrics - << EOF
@@ -105,6 +104,10 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write template
 path "yaufs/template/*"   { capabilities = ["create", "update", "read"] }
 EOF'
 
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c 'vault policy write zitadel - <<EOF
+path "zitadel/*"   { capabilities = ["create", "update", "read"] }
+EOF'
+
 echo "Creating authentication roles"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/vault-issuer \
   bound_service_account_names="vault-issuer" \
@@ -124,20 +127,65 @@ kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/t
   policies="template-service" \
   ttl=1h
 
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write auth/kubernetes/role/zitadel \
+  bound_service_account_names=postgres \
+  bound_service_account_namespaces=zitadel \
+  policies="zitadel" \
+  ttl=1h
+
 PROMETHEUS_VAULT_TOKEN=$(kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault token create \
   -field=token \
   -policy "prometheus-metrics")
 kubectl create namespace prometheus
 kubectl create secret generic prometheus-vault-token -n prometheus --from-literal=token="$PROMETHEUS_VAULT_TOKEN"
-
-echo "Executing scripts/oidc.sh"
-./scripts/oidc.sh "$HOST" "$VAULT_NAMESPACE" "$LINKERD_NAMESPACE"
 echo "Vault setup completed"
+
+echo "Initiating zitadel secrets"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write zitadel/master-key \
+  key="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+
+ZITADEL_ROOT_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+ZITADEL_POSTGRES_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+ZITADEL_POSTGRES_ADMIN_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+ZITADEL_POSTGRES_REPMGR_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write zitadel/zitadel-postgres \
+  username="zitadel" \
+  database="zitadel" \
+  password="$ZITADEL_POSTGRES_PASSWORD"
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write zitadel/postgres \
+  username="postgres" \
+  password="$ZITADEL_POSTGRES_ADMIN_PASSWORD" \
+  repmgr-username="repmgr" \
+  repmgr-database="repmgr" \
+  repmgr-password="$ZITADEL_POSTGRES_REPMGR_PASSWORD"
+
+kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- sh -c "vault write zitadel/config \
+  config=- <<EOF
+Database:
+  postgres:
+    User:
+      Username: zitadel
+      Password: '$ZITADEL_POSTGRES_PASSWORD'
+      SSL:
+        Mode: verify-full
+    Admin:
+      Username: postgres
+      Password: '$ZITADEL_POSTGRES_ADMIN_PASSWORD'
+      SSL:
+        Mode: verify-full
+
+FirstInstance:
+  Org:
+    Human:
+      Username: 'admin'
+      Password: '$ZITADEL_ROOT_PASSWORD'
+EOF"
 
 echo "Initiating kv for yaufs-services"
 kubectl exec -n "$VAULT_NAMESPACE" vault-0 -- vault write yaufs/template/surrealdb \
-  username="$(openssl rand -base64 16)" \
-  password="$(openssl rand -base64 32)"
+  username="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)" \
+  password="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
 
 echo "Setup finished"
 echo "Vault credentials saved to vault.json"

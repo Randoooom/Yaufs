@@ -117,7 +117,7 @@ resource "helm_release" "loki" {
 }
 
 resource "kubectl_manifest" "monitoring_apisix" {
-  depends_on = [helm_release.apisix, kubectl_manifest.apisix_openid]
+  depends_on = [helm_release.apisix]
   yaml_body  = yamlencode({
     "apiVersion" = "apisix.apache.org/v2"
     "kind"       = "ApisixRoute"
