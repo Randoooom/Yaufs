@@ -327,21 +327,12 @@ provider "zitadel" {
   token  = "${path.module}/output/zitadel.json"
 }
 
-resource "zitadel_org" "yaufs" {
+module "zitadel" {
+  source     = "./modules/zitadel"
   depends_on = [data.local_file.zitadel_credentials]
 
-  name = var.zitadel_org
+  host                   = var.host
+  zitadel_admin_password = jsondecode(data.local_file.zitadel_credentials.content).password
+  zitadel_org            = var.zitadel_org
 }
 
-resource "zitadel_human_user" "zitadel_org_admin" {
-  depends_on = [zitadel_org.yaufs]
-
-  org_id            = zitadel_org.yaufs.id
-  email             = "admin@${var.host}"
-  is_email_verified = true
-  user_name         = "admin@${var.host}"
-  first_name        = "Admin"
-  last_name         = var.zitadel_org
-  display_name      = "Admin"
-  initial_password  = jsondecode(data.local_file.zitadel_credentials.content).password
-}
