@@ -1,7 +1,13 @@
+resource "kubernetes_namespace" "linkerd" {
+  metadata {
+    name = "linkerd"
+  }
+}
+
 resource "helm_release" "linkerd_crds" {
   name             = "linkerd-crds"
-  namespace        = var.linkerd_namespace
-  create_namespace = true
+  namespace        = "linkerd"
+  depends_on = [kubernetes_namespace.linkerd]
 
   repository = "https://helm.linkerd.io/stable"
   chart      = "linkerd-crds"
@@ -12,7 +18,7 @@ resource "kubernetes_service_account" "linkerd_issuer_serviceaccount" {
 
   metadata {
     name      = "linkerd-issuer"
-    namespace = var.linkerd_namespace
+    namespace = "linkerd"
   }
 }
 
@@ -21,7 +27,7 @@ resource "kubernetes_secret" "linkerd_issuer_token" {
 
   metadata {
     name        = "linkerd-issuer-token"
-    namespace   = var.linkerd_namespace
+    namespace   = "linkerd"
     annotations = {
       "kubernetes.io/service-account.name" = "linkerd-issuer"
     }
@@ -36,7 +42,7 @@ resource "kubectl_manifest" "linkerd_issuer" {
     "kind"       = "Issuer"
     "metadata"   = {
       "name"      = "linkerd-trust-anchor"
-      "namespace" = var.linkerd_namespace
+      "namespace" = "linkerd"
     }
     "spec" = {
       "vault" = {
@@ -52,7 +58,7 @@ resource "kubectl_manifest" "linkerd_issuer" {
         }
         "caBundle" = data.local_file.vault_ca.content_base64
         "path"     = "pki/root/sign-intermediate"
-        "server"   = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
+        "server"   = "https://vault.vault.svc.cluster.local:8200"
       }
     }
   })
@@ -70,7 +76,7 @@ resource "kubectl_manifest" "linkerd_intermediate_ca" {
     "kind"       = "Certificate"
     "metadata"   = {
       "name"      = "linkerd-identity-issuer"
-      "namespace" = var.linkerd_namespace
+      "namespace" = "linkerd"
     }
     "spec" = {
       "isCA"       = true
@@ -92,7 +98,7 @@ resource "kubectl_manifest" "linkerd_intermediate_ca" {
 resource "null_resource" "read_linkerd_ca" {
   depends_on = [kubectl_manifest.linkerd_intermediate_ca]
   provisioner "local-exec" {
-    command = "sleep 10; chmod +x scripts/linkerd.sh; /bin/bash scripts/linkerd.sh ${var.linkerd_namespace}"
+    command = "sleep 10; chmod +x scripts/linkerd.sh; /bin/bash scripts/linkerd.sh"
   }
 }
 
@@ -103,7 +109,7 @@ data "local_file" "linkerd_ca" {
 
 resource "helm_release" "linkerd" {
   name       = "linkerd"
-  namespace  = var.linkerd_namespace
+  namespace  = "linkerd"
   depends_on = [data.local_file.linkerd_ca, helm_release.linkerd_crds]
 
   repository = "https://helm.linkerd.io/stable"
@@ -116,6 +122,9 @@ resource "helm_release" "linkerd" {
         "issuer" = {
           "scheme" = "kubernetes.io/tls"
         }
+      }
+      "proxy" = {
+        "defaultInboundPolicy" = "cluster-authenticated"
       }
     })
   ]

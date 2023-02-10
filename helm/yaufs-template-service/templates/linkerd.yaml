@@ -1,0 +1,40 @@
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: {{ .Values.name }}
+  namespace: template-service
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.name }}
+  port: 8000
+  proxyProtocol: gRPC
+
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: {{ .Values.name }}-health-check
+  namespace: template-service
+spec:
+  parentRefs:
+    - name: {{ .Values.name }}
+      kind: Server
+      group: policy.linkerd.io
+  rules:
+    - matches:
+        - path:
+            value: "/grpc.health.v1.Health/Check"
+          method: POST
+
+---
+apiVersion: policy.linkerd.io/v1alpha1
+kind: AuthorizationPolicy
+metadata:
+  name: {{ .Values.name }}-health-check
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: HTTPRoute
+    name: {{ .Values.name }}-health-check
+  requiredAuthenticationRefs: []

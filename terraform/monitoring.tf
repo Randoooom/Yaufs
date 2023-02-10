@@ -1,97 +1,209 @@
-data "template_file" "prometheus_scrapes" {
-  template = file("${path.module}/config/prometheus-scrapes.yaml")
+resource "kubernetes_namespace" "prometheus" {
+  depends_on = [helm_release.linkerd]
 
-  vars = {
-    vault_namespace   = var.vault_namespace
-    linkerd_namespace = var.linkerd_namespace
-    jaeger_namespace  = var.jaeger_namespace
+  metadata {
+    name        = "prometheus"
+    annotations = {
+      "linkerd.io/inject" = "enabled"
+    }
   }
 }
 
-resource "helm_release" "prometheus" {
-  name             = "prometheus"
-  namespace        = var.prometheus_namespace
-  create_namespace = true
-
-  repository = "https://prometheus-community.github.io/helm-charts"
-  chart      = "prometheus"
-  values     = [data.template_file.prometheus_scrapes.rendered]
+resource "kubectl_manifest" "grafana_csi" {
+  depends_on = [
+    kubernetes_namespace.prometheus, null_resource.vault_setup, helm_release.csi_driver
+  ]
+  yaml_body = yamlencode({
+    "apiVersion" = "secrets-store.csi.x-k8s.io/v1"
+    "kind"       = "SecretProviderClass"
+    "metadata"   = {
+      "name"      = "vault-grafana"
+      "namespace" = "prometheus"
+    }
+    "spec" = {
+      "parameters" = {
+        "objects"      = <<-EOT
+      - objectName: "grafana-admin-username"
+        secretPath: "monitoring/grafana/credentials"
+        secretKey: "username"
+      - objectName: "grafana-admin-password"
+        secretPath: "monitoring/grafana/credentials"
+        secretKey: "password"
+      EOT
+        "roleName"     = "grafana"
+        "vaultAddress" = "https://vault.vault.svc.cluster.local:8200"
+      }
+      "provider"      = "vault"
+      "secretObjects" = [
+        {
+          "data" = [
+            {
+              "key"        = "username"
+              "objectName" = "grafana-admin-username"
+            },
+            {
+              "key"        = "password"
+              "objectName" = "grafana-admin-password"
+            }
+          ]
+          "secretName" = "grafana"
+          "type"       = "Opaque"
+        },
+      ]
+    }
+  })
 }
 
-resource "helm_release" "grafana" {
-  name       = "grafana"
-  namespace  = var.prometheus_namespace
-  depends_on = [helm_release.prometheus, helm_release.loki]
+resource "helm_release" "prometheus" {
+  name       = "prometheus"
+  namespace  = "prometheus"
+  depends_on = [
+    null_resource.vault_setup, helm_release.linkerd, kubernetes_namespace.prometheus, kubectl_manifest.grafana_csi,
+    helm_release.loki
+  ]
 
-  repository = "https://grafana.github.io/helm-charts"
-  chart      = "grafana"
-
-  values = [
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  values     = [
     yamlencode({
-      "datasources" = {
-        "datasources.yaml" = {
-          "apiVersion"  = 1
-          "datasources" = [
-            {
-              "name" = "Prometheus"
-              "type" = "prometheus"
-              "url"  = "http://prometheus-server.${var.prometheus_namespace}.svc.cluster.local:80"
-            },
-            {
-              "name" = "Jaeger"
-              "type" = "jaeger"
-              "url"  = "http://jaeger-default-query.${var.jaeger_namespace}.svc.cluster.local:16686"
-            },
-            {
-              "name"   = "Loki"
-              "type"   = "loki"
-              "access" = "proxy"
-              "url"    = "http://loki.loki.svc.cluster.local:3100"
-            }
-          ]
+      "grafana" = {
+        "admin" = {
+          "existingSecret" = "grafana"
+          "userKey"        = "username"
+          "passwordKey"    = "password"
         }
-      }
-      "dashboardProviders" = {
-        "dashboardproviders.yaml" = {
-          "apiVersion" = 1
-          "providers"  = [
-            {
-              "name"            = "default"
-              "orgId"           = 1
-              "folder"          = ""
-              "type"            = "file"
-              "disableDeletion" = true
-              "editable"        = true
-              "options"         = {
-                "path" = "/var/lib/grafana/dashboards/default"
+        "extraVolumeMounts" = [
+          {
+            "name"      = "secrets-store"
+            "mountPath" = "/mnt/secrets-store"
+            "csi"       = true
+            "data"      = {
+              "driver"           = "secrets-store.csi.k8s.io"
+              "readOnly"         = true
+              "volumeAttributes" = {
+                "secretProviderClass" = "vault-grafana"
               }
             }
-          ]
+          }
+        ]
+        "additionalDataSources" = [
+          {
+            "name" = "Jaeger"
+            "type" = "jaeger"
+            "url"  = "http://jaeger-jaeger-operator-jaeger-query.jaeger.svc.cluster.local:16686"
+          },
+          {
+            "name"   = "Loki"
+            "type"   = "loki"
+            "access" = "proxy"
+            "url"    = "http://loki.loki.svc.cluster.local:3100"
+          }
+        ]
+      }
+      "alertmanager" = {
+        "enabled" = false
+      }
+      "prometheusOperator" = {
+        "admissionWebhooks" = {
+          "enabled" = false
+        }
+        "tls" = {
+          "enabled" = false
         }
       }
-      "dashboards" = {
-        "default" = {
-          "apisix" = {
-            "json" = <<EOF
-              ${file("${path.module}/config/grafana/apisix.json")}
-            EOF
-          }
-          "vault" = {
-            "json" = <<EOF
-              ${file("${path.module}/config/grafana/vault.json")}
-            EOF
-          }
+      "prometheus" = {
+        "prometheusSpec" = {
+          "additionalScrapeConfigs" = yamldecode(file("${path.module}/config/prometheus-scrapes.yaml"))
+        }
+      }
+      "prometheus-node-exporter" = {
+        "hostRootFsMount" = {
+          "enabled" = false
         }
       }
     })
   ]
 }
 
+#resource "helm_release" "grafana" {
+#  name       = "grafana"
+#  namespace  = "prometheus"
+#  depends_on = [helm_release.prometheus, helm_release.loki]
+#
+#  repository = "https://grafana.github.io/helm-charts"
+#  chart      = "grafana"
+#
+#  values = [
+#    yamlencode({
+#      "datasources" = {
+#        "datasources.yaml" = {
+#          "apiVersion"  = 1
+#          "datasources" = [
+#            {
+#              "name" = "Prometheus"
+#              "type" = "prometheus"
+#              "url"  = "http://prometheus-server.prometheus.svc.cluster.local:80"
+#            },
+#            {
+#              "name" = "Jaeger"
+#              "type" = "jaeger"
+#              "url"  = "http://jaeger-jaeger-operator-jaeger-query.jaeger.svc.cluster.local:16686"
+#            },
+#            {
+#              "name"   = "Loki"
+#              "type"   = "loki"
+#              "access" = "proxy"
+#              "url"    = "http://loki.loki.svc.cluster.local:3100"
+#            }
+#          ]
+#        }
+#      }
+#      "dashboardProviders" = {
+#        "dashboardproviders.yaml" = {
+#          "apiVersion" = 1
+#          "providers"  = [
+#            {
+#              "name"            = "default"
+#              "orgId"           = 1
+#              "folder"          = ""
+#              "type"            = "file"
+#              "disableDeletion" = true
+#              "editable"        = true
+#              "options"         = {
+#                "path" = "/var/lib/grafana/dashboards/default"
+#              }
+#            }
+#          ]
+#        }
+#      }
+#      "dashboards" = {
+#        "default" = {
+#          "vault" = {
+#            "json" = <<EOF
+#              ${file("${path.module}/config/grafana/vault.json")}
+#            EOF
+#          }
+#        }
+#      }
+#    })
+#  ]
+#}
+
+resource "kubernetes_namespace" "loki" {
+  depends_on = [helm_release.linkerd]
+
+  metadata {
+    name        = "loki"
+    annotations = {
+      "linkerd.io/inject" = "enabled"
+    }
+  }
+}
+
 resource "helm_release" "loki" {
-  name             = "loki"
-  namespace        = "loki"
-  depends_on       = [helm_release.prometheus]
-  create_namespace = true
+  name       = "loki"
+  namespace  = "loki"
+  depends_on = [kubernetes_namespace.loki]
 
   repository = "https://grafana.github.io/helm-charts"
   chart      = "loki-stack"
@@ -116,85 +228,29 @@ resource "helm_release" "loki" {
   ]
 }
 
-resource "kubectl_manifest" "monitoring_apisix" {
-  depends_on = [helm_release.apisix]
-  yaml_body  = yamlencode({
-    "apiVersion" = "apisix.apache.org/v2"
-    "kind"       = "ApisixRoute"
+resource "kubectl_manifest" "monitoring_ingress" {
+  depends_on = [helm_release.prometheus, helm_release.traefik]
+
+  yaml_body = yamlencode({
+    "apiVersion" = "traefik.containo.us/v1alpha1"
+    "kind"       = "IngressRoute"
     "metadata"   = {
       "name"      = "monitoring"
-      "namespace" = var.prometheus_namespace
+      "namespace" = "prometheus"
     }
     "spec" = {
-      "http" = [
+      "entryPoints" = [
+        "websecure",
+      ]
+      "routes" = [
         {
-          "backends" = [
+          "kind"     = "Rule"
+          "match"    = "Host(`grafana.${var.host}`)"
+          "services" = [
             {
-              "serviceName" = "grafana"
-              "servicePort" = 80
-            },
-          ]
-          "match" = {
-            "hosts" = [
-              "grafana.${var.host}",
-            ]
-            "paths" = [
-              "/*",
-            ]
-          }
-          "name"    = "grafana"
-          "plugins" = [
-            {
-              "config" = {
-                "http_to_https" = true
-              }
-              "enable" = true
-              "name"   = "redirect"
-            },
-            {
-              "config" = {
-                "conf" = "|"
-              }
-              "name"     = "yaufs-request-id"
-              "enable" = true
-            },
-            {
-              "config" = {
-                "sampler" = {
-                  "name" = "always_on"
-                }
-                "additional_attributes" = ["route_id", "http_header"]
-                "additional_header_prefix_attributes" = ["x-request-id"]
-              }
-              "name"   = "opentelemetry"
-              "enable" = true
-            }
-          ],
-          #                  "plugin_config_name" = "oidc"
-        },
-        {
-          "backends" = [
-            {
-              "serviceName" = "prometheus-server"
-              "servicePort" = 80
-            },
-          ]
-          "match" = {
-            "hosts" = [
-              "prometheus.${var.host}",
-            ]
-            "paths" = [
-              "/*",
-            ]
-          }
-          "name"    = "prometheus"
-          "plugins" = [
-            {
-              "config" = {
-                "http_to_https" = true
-              }
-              "enable" = true
-              "name"   = "redirect"
+              "name"   = "prometheus-grafana"
+              "port"   = 80
+              "scheme" = "http"
             },
           ]
         },

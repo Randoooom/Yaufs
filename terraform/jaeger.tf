@@ -1,38 +1,44 @@
+resource "kubernetes_namespace" "jaeger" {
+  depends_on = [helm_release.linkerd]
+
+  metadata {
+    name        = "jaeger"
+    annotations = {
+      "linkerd.io/inject"                        = "enabled"
+      "config.linkerd.io/default-inbound-policy" = "cluster-unauthenticated"
+    }
+  }
+}
+
 resource "helm_release" "jaeger_operator" {
-  name             = "jaeger"
-  namespace        = var.jaeger_namespace
-  create_namespace = true
-  depends_on       = [helm_release.cert-manager]
+  name       = "jaeger"
+  namespace  = "jaeger"
+  depends_on = [helm_release.cert-manager, kubernetes_namespace.jaeger]
 
   repository = "https://jaegertracing.github.io/helm-charts"
   chart      = "jaeger-operator"
 
-  set {
-    name  = "rbac.clusterRole"
-    value = true
-  }
-}
-
-resource "kubectl_manifest" "jaeger" {
-  depends_on = [helm_release.jaeger_operator]
-  yaml_body  = yamlencode({
-    "apiVersion" = "jaegertracing.io/v1"
-    "kind"       = "Jaeger"
-    "metadata"   = {
-      "name"      = "jaeger-default"
-      "namespace" = var.jaeger_namespace
-    }
-    "spec" = {
-      "strategy"  = "production",
-      "collector" = {
-        "maxReplicas" = 1
+  values = [
+    yamlencode({
+      "rbac" = {
+        "clusterRole" = true
       }
-      "ingress" = {
-        "enabled" = false
+      "jaeger" = {
+        "create"    = true
+        "namespace" = "jaeger"
+        "spec"      = {
+          annotations = {
+            "linkerd.io/inject" = "enabled"
+          }
+          "strategy"  = "production",
+          "collector" = {
+            "maxReplicas" = 1
+          }
+          "ingress" = {
+            "enabled" = false
+          }
+        }
       }
-      "annotations" = {
-        "linkerd.io/inject" = "enabled"
-      }
-    }
-  })
+    })
+  ]
 }

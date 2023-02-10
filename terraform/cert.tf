@@ -1,6 +1,6 @@
 resource "helm_release" "cert-manager" {
   name             = "cert-manager"
-  namespace        = var.cert_manager_namespace
+  namespace        = "cert-manager"
   create_namespace = true
   depends_on       = [helm_release.vault, null_resource.vault_setup]
 
@@ -23,7 +23,7 @@ resource "kubernetes_service_account" "vault_issuer" {
 
   metadata {
     name      = "vault-issuer"
-    namespace = var.cert_manager_namespace
+    namespace = "cert-manager"
   }
 }
 
@@ -39,7 +39,7 @@ resource "kubectl_manifest" "issuer" {
     "kind"       = "ClusterIssuer"
     "metadata"   = {
       "name"      = "vault-issuer"
-      "namespace" = var.cert_manager_namespace
+      "namespace" = "cert-manager"
     }
     "spec" = {
       "vault" = {
@@ -55,7 +55,7 @@ resource "kubectl_manifest" "issuer" {
         }
         "caBundle" = data.local_file.vault_ca.content_base64
         "path"     = "pki/sign/cluster"
-        "server"   = "https://vault.${var.vault_namespace}.svc.cluster.local:8200"
+        "server"   = "https://vault.vault.svc.cluster.local:8200"
       }
     }
   })

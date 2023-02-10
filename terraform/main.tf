@@ -14,5 +14,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = ">= 1.7.0"
     }
+
+    zitadel = {
+      source  = "zitadel/zitadel"
+      version = "1.0.0-alpha.11"
+    }
   }
 }

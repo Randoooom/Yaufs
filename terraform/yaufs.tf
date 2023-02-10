@@ -1,76 +1,50 @@
+resource "kubernetes_namespace" "yaufs_template_service" {
+  depends_on = [helm_release.linkerd, helm_release.jaeger_operator]
+
+  metadata {
+    name        = "template-service"
+    annotations = {
+      "linkerd.io/inject" = "enabled"
+    }
+  }
+}
+
 resource "helm_release" "yaufs_template_service" {
-  name             = "template-service"
-  namespace        = "template-service"
-  depends_on       = [kubectl_manifest.issuer, null_resource.vault_setup, helm_release.csi_driver]
-  create_namespace = true
+  name       = "template-service"
+  namespace  = "template-service"
+  depends_on = [
+    kubectl_manifest.issuer, null_resource.vault_setup, helm_release.csi_driver,
+    kubernetes_namespace.yaufs_template_service
+  ]
 
   chart = "${path.module}/../helm/yaufs-template-service"
 }
 
-resource "kubectl_manifest" "yaufs_template_service_upstream" {
-  depends_on = [helm_release.apisix, helm_release.yaufs_template_service]
-  yaml_body  = yamlencode({
-    "apiVersion" = "apisix.apache.org/v2"
-    "kind"       = "ApisixUpstream"
-    "metadata"   = {
-      "name"      = "yaufs-template-service"
-      "namespace" = "template-service"
-    }
-    "spec" = {
-      "scheme" = "grpc"
-    }
-  })
-}
+resource "kubectl_manifest" "template_service_ingress" {
+  depends_on = [helm_release.yaufs_template_service, helm_release.traefik]
 
-resource "kubectl_manifest" "yaufs_template_service_apisix" {
-  depends_on = [
-    helm_release.apisix, helm_release.yaufs_template_service, kubectl_manifest.yaufs_template_service_upstream
-  ]
-  yaml_body  = yamlencode({
-    "apiVersion" = "apisix.apache.org/v2"
-    "kind"       = "ApisixRoute"
+  yaml_body = yamlencode({
+    "apiVersion" = "traefik.containo.us/v1alpha1"
+    "kind"       = "IngressRoute"
     "metadata"   = {
       "name"      = "template-service"
       "namespace" = "template-service"
     }
     "spec" = {
-      "http" = [
+      "entryPoints" = [
+        "websecure",
+      ]
+      "routes" = [
         {
-          "backends" = [
+          "kind"     = "Rule"
+          "match"    = "Host(`template.${var.host}`)"
+          "services" = [
             {
-              "serviceName" = "yaufs-template-service"
-              "servicePort" = 8000
+              "name"   = "yaufs-template-service"
+              "port"   = 8000
+              "scheme" = "h2c"
             },
           ]
-          "match" = {
-            "hosts" = [
-              "template.${var.host}",
-            ]
-            "paths" = [
-              "/*",
-            ]
-          }
-          "name"    = "yaufs-template-service"
-          "plugins" = [
-            {
-              "config" = {
-                "conf" = "|"
-              }
-              "name"   = "yaufs-request-id"
-              "enable" = true
-            },
-            {
-              "config" = {
-                "sampler" = {
-                  "name" = "always_on"
-                }
-                "additional_attributes" = ["route_id", "http_header"]
-                "additional_header_prefix_attributes" = ["x-request-id"]
-              }
-              "name"   = "opentelemetry"
-              "enable" = true
-            }
-          ],
         },
       ]
     }

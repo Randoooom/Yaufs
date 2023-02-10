@@ -1,12 +1,25 @@
-resource "null_resource" "vault_init" {
-  provisioner "local-exec" {
-    command = "chmod +x scripts/vault-init.sh; /bin/bash scripts/vault-init.sh ${var.vault_namespace}"
+resource "kubernetes_namespace" "vault" {
+  metadata {
+    name = "vault"
   }
+}
+
+resource "null_resource" "vault_init" {
+  depends_on = [kubernetes_namespace.vault]
+
+  provisioner "local-exec" {
+    command = "chmod +x scripts/vault-init.sh; /bin/bash scripts/vault-init.sh"
+  }
+}
+
+data "local_file" "vault_ca" {
+  filename   = "${path.module}/output/vault.ca"
+  depends_on = [null_resource.vault_init]
 }
 
 resource "helm_release" "vault" {
   name       = "vault"
-  namespace  = var.vault_namespace
+  namespace  = "vault"
   depends_on = [null_resource.vault_init]
 
   repository = "https://helm.releases.hashicorp.com"
@@ -83,7 +96,7 @@ EOF
         "enabled" = false
       }
       "csi" = {
-        "enabled" = true
+        "enabled"   = true
         "extraArgs" = ["-vault-tls-ca-cert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"]
       }
     }
@@ -95,60 +108,69 @@ resource "null_resource" "vault_setup" {
   depends_on = [helm_release.vault]
 
   provisioner "local-exec" {
-    command = "chmod +x scripts/setup.sh; chmod +x scripts/oidc.sh; /bin/bash scripts/setup.sh ${var.host} ${var.vault_namespace} ${var.linkerd_namespace}"
+    command = "chmod +x scripts/setup.sh; chmod +x scripts/oidc.sh; /bin/bash scripts/setup.sh ${var.host}"
   }
 }
 
 resource "helm_release" "csi_driver" {
   depends_on = [null_resource.vault_setup]
   name       = "csi-driver"
-  namespace  = var.vault_namespace
+  namespace  = "vault"
 
   repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
-  chart = "secrets-store-csi-driver"
+  chart      = "secrets-store-csi-driver"
 
   set {
-    name = "syncSecret.enabled"
+    name  = "syncSecret.enabled"
     value = true
   }
 }
 
-resource "kubernetes_manifest" "vault_ingress" {
-  depends_on = [helm_release.apisix, helm_release.vault]
-  manifest   = {
-    "apiVersion" = "networking.k8s.io/v1"
-    "kind"       = "Ingress"
+resource "kubectl_manifest" "vault_transport" {
+  depends_on = [helm_release.traefik]
+
+  yaml_body = yamlencode({
+    "apiVersion" = "traefik.containo.us/v1alpha1"
+    "kind"       = "ServersTransport"
     "metadata"   = {
-      "annotations" = {
-        "k8s.apisix.apache.org/http-to-https"   = "true"
-        "k8s.apisix.apache.org/upstream-scheme" = "https"
-      }
       "name"      = "vault"
-      "namespace" = var.vault_namespace
+      "namespace" = "vault"
     }
     "spec" = {
-      "ingressClassName" = "apisix"
-      "rules"            = [
+      "insecureSkipVerify" = true
+    }
+  })
+}
+
+resource "kubectl_manifest" "vault_ingress" {
+  depends_on = [helm_release.vault, helm_release.traefik, kubectl_manifest.vault_transport]
+
+  yaml_body = yamlencode({
+    "apiVersion" = "traefik.containo.us/v1alpha1"
+    "kind"       = "IngressRoute"
+    "metadata"   = {
+      "name"      = "vault"
+      "namespace" = "vault"
+    }
+    "spec" = {
+      "entryPoints" = [
+        "websecure",
+      ]
+      "routes" = [
         {
-          "host" = "vault.${var.host}"
-          "http" = {
-            "paths" = [
-              {
-                "backend" = {
-                  "service" = {
-                    "name" = "vault"
-                    "port" = {
-                      "number" = 8200
-                    }
-                  }
-                }
-                "path"     = "/*"
-                "pathType" = "Prefix"
-              }
-            ]
-          }
+          "kind"     = "Rule"
+          "match"    = "Host(`vault.${var.host}`)"
+          "services" = [
+            {
+              "serversTransport"   = "vault"
+              "name"               = "vault"
+              "port"               = 8200
+              "scheme"             = "https"
+              "insecureSkipVerify" = true
+            },
+          ]
         },
       ]
     }
-  }
+  })
 }
