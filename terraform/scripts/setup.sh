@@ -166,7 +166,7 @@ echo "Initiating zitadel secrets"
 
 ZITADEL_COCKROACH_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
 ZITADEL_COCKROACH_ADMIN_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
-ZITADEL_ADMIN_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)
+ZITADEL_ADMIN_PASSWORD="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 31)@"
 
 jq -n \
   --arg password "$ZITADEL_ADMIN_PASSWORD" \
