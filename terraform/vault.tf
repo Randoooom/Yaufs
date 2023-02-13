@@ -17,6 +17,11 @@ data "local_file" "vault_ca" {
   depends_on = [null_resource.vault_init]
 }
 
+data "local_file" "vault_root" {
+  filename   = "${path.module}/output/vault-root.ca"
+  depends_on = [null_resource.vault_setup]
+}
+
 resource "helm_release" "vault" {
   name       = "vault"
   namespace  = "vault"
@@ -91,6 +96,19 @@ resource "helm_release" "vault" {
 EOF
           }
         }
+        "ingress" = {
+          "enabled"          = true
+          "ingressClassName" = "nginx"
+          "annotations"      = {
+            "nginx.ingress.kubernetes.io/backend-protocol" = "HTTPS"
+          }
+          "hosts" = [
+            {
+              "host"  = "vault.${var.host}"
+              "paths" = []
+            }
+          ]
+        }
       }
       "injector" = {
         "enabled" = false
@@ -124,53 +142,4 @@ resource "helm_release" "csi_driver" {
     name  = "syncSecret.enabled"
     value = true
   }
-}
-
-resource "kubectl_manifest" "vault_transport" {
-  depends_on = [helm_release.traefik]
-
-  yaml_body = yamlencode({
-    "apiVersion" = "traefik.containo.us/v1alpha1"
-    "kind"       = "ServersTransport"
-    "metadata"   = {
-      "name"      = "vault"
-      "namespace" = "vault"
-    }
-    "spec" = {
-      "insecureSkipVerify" = true
-    }
-  })
-}
-
-resource "kubectl_manifest" "vault_ingress" {
-  depends_on = [helm_release.vault, helm_release.traefik, kubectl_manifest.vault_transport]
-
-  yaml_body = yamlencode({
-    "apiVersion" = "traefik.containo.us/v1alpha1"
-    "kind"       = "IngressRoute"
-    "metadata"   = {
-      "name"      = "vault"
-      "namespace" = "vault"
-    }
-    "spec" = {
-      "entryPoints" = [
-        "websecure",
-      ]
-      "routes" = [
-        {
-          "kind"     = "Rule"
-          "match"    = "Host(`vault.${var.host}`)"
-          "services" = [
-            {
-              "serversTransport"   = "vault"
-              "name"               = "vault"
-              "port"               = 8200
-              "scheme"             = "https"
-              "insecureSkipVerify" = true
-            },
-          ]
-        },
-      ]
-    }
-  })
 }

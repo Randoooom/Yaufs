@@ -261,51 +261,37 @@ resource "helm_release" "zitadel" {
             "tag" = "1.25.6"
           }
         }
-        "service" = {
-          "annotations" = {
-            "traefik.ingress.kubernetes.io/service.serversscheme" = "h2c"
-          }
-        }
         "metrics" = {
           "enabled"        = true
           "serviceMonitor" = {
             "enabled" = true
           }
         }
+        "ingress" = {
+          "enabled"     = "true"
+          "className"   = "nginx"
+          "annotations" = {
+            "nginx.ingress.kubernetes.io/backend-protocol"      = "GRPC"
+            "nginx.ingress.kubernetes.io/configuration-snippet" = <<EOF
+            grpc_set_header Host $http_host;
+EOF
+            "nginx.ingress.kubernetes.io/service-upstream"      = "true"
+          }
+          "hosts" = [
+            {
+              "host"  = "auth.${var.host}"
+              "paths" = [
+                {
+                  "path"     = "/"
+                  "pathType" = "Prefix"
+                }
+              ]
+            }
+          ]
+        }
       }
     )
   ]
-}
-
-resource "kubectl_manifest" "zitadel_ingress" {
-  depends_on = [kubernetes_namespace.zitadel, helm_release.traefik]
-
-  yaml_body = yamlencode({
-    "apiVersion" = "traefik.containo.us/v1alpha1"
-    "kind"       = "IngressRoute"
-    "metadata"   = {
-      "name"      = "zitadel"
-      "namespace" = "zitadel"
-    }
-    "spec" = {
-      "entryPoints" = [
-        "websecure",
-      ]
-      "routes" = [
-        {
-          "kind"     = "Rule"
-          "match"    = "Host(`auth.${var.host}`)"
-          "services" = [
-            {
-              "name"   = "zitadel"
-              "port"   = 8080
-              "scheme" = "h2c"
-            },
-          ]
-        },
-      ]
-    }
-  })
 }
 
 resource "null_resource" "zitadel_credentials" {
@@ -329,7 +315,7 @@ provider "zitadel" {
 
 module "zitadel" {
   source     = "./modules/zitadel"
-  depends_on = [data.local_file.zitadel_credentials]
+  depends_on = [data.local_file.zitadel_credentials, helm_release.nginx, helm_release.zitadel]
 
   host                   = var.host
   zitadel_admin_password = jsondecode(data.local_file.zitadel_credentials.content).password

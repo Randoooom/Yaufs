@@ -99,6 +99,15 @@ resource "helm_release" "prometheus" {
             "url"    = "http://loki.loki.svc.cluster.local:3100"
           }
         ]
+        "ingress" = {
+          "enabled"          = true
+          "ingressClassName" = "nginx"
+          "hosts"            = ["monitoring.${var.host}"]
+          "annotations"      = {
+            "nginx.ingress.kubernetes.io/auth-url"    = "http://oauth2-proxy.nginx.svc.cluster.local:80/oauth2/auth"
+            "nginx.ingress.kubernetes.io/auth-signin" = "https://${var.host}/oauth2/start?rd=$request_uri"
+          }
+        }
       }
       "alertmanager" = {
         "enabled" = false
@@ -124,70 +133,6 @@ resource "helm_release" "prometheus" {
     })
   ]
 }
-
-#resource "helm_release" "grafana" {
-#  name       = "grafana"
-#  namespace  = "prometheus"
-#  depends_on = [helm_release.prometheus, helm_release.loki]
-#
-#  repository = "https://grafana.github.io/helm-charts"
-#  chart      = "grafana"
-#
-#  values = [
-#    yamlencode({
-#      "datasources" = {
-#        "datasources.yaml" = {
-#          "apiVersion"  = 1
-#          "datasources" = [
-#            {
-#              "name" = "Prometheus"
-#              "type" = "prometheus"
-#              "url"  = "http://prometheus-server.prometheus.svc.cluster.local:80"
-#            },
-#            {
-#              "name" = "Jaeger"
-#              "type" = "jaeger"
-#              "url"  = "http://jaeger-jaeger-operator-jaeger-query.jaeger.svc.cluster.local:16686"
-#            },
-#            {
-#              "name"   = "Loki"
-#              "type"   = "loki"
-#              "access" = "proxy"
-#              "url"    = "http://loki.loki.svc.cluster.local:3100"
-#            }
-#          ]
-#        }
-#      }
-#      "dashboardProviders" = {
-#        "dashboardproviders.yaml" = {
-#          "apiVersion" = 1
-#          "providers"  = [
-#            {
-#              "name"            = "default"
-#              "orgId"           = 1
-#              "folder"          = ""
-#              "type"            = "file"
-#              "disableDeletion" = true
-#              "editable"        = true
-#              "options"         = {
-#                "path" = "/var/lib/grafana/dashboards/default"
-#              }
-#            }
-#          ]
-#        }
-#      }
-#      "dashboards" = {
-#        "default" = {
-#          "vault" = {
-#            "json" = <<EOF
-#              ${file("${path.module}/config/grafana/vault.json")}
-#            EOF
-#          }
-#        }
-#      }
-#    })
-#  ]
-#}
 
 resource "kubernetes_namespace" "loki" {
   depends_on = [helm_release.linkerd]
@@ -226,35 +171,4 @@ resource "helm_release" "loki" {
       }
     })
   ]
-}
-
-resource "kubectl_manifest" "monitoring_ingress" {
-  depends_on = [helm_release.prometheus, helm_release.traefik]
-
-  yaml_body = yamlencode({
-    "apiVersion" = "traefik.containo.us/v1alpha1"
-    "kind"       = "IngressRoute"
-    "metadata"   = {
-      "name"      = "monitoring"
-      "namespace" = "prometheus"
-    }
-    "spec" = {
-      "entryPoints" = [
-        "websecure",
-      ]
-      "routes" = [
-        {
-          "kind"     = "Rule"
-          "match"    = "Host(`grafana.${var.host}`)"
-          "services" = [
-            {
-              "name"   = "prometheus-grafana"
-              "port"   = 80
-              "scheme" = "http"
-            },
-          ]
-        },
-      ]
-    }
-  })
 }

@@ -19,34 +19,3 @@ resource "helm_release" "yaufs_template_service" {
 
   chart = "${path.module}/../helm/yaufs-template-service"
 }
-
-resource "kubectl_manifest" "template_service_ingress" {
-  depends_on = [helm_release.yaufs_template_service, helm_release.traefik]
-
-  yaml_body = yamlencode({
-    "apiVersion" = "traefik.containo.us/v1alpha1"
-    "kind"       = "IngressRoute"
-    "metadata"   = {
-      "name"      = "template-service"
-      "namespace" = "template-service"
-    }
-    "spec" = {
-      "entryPoints" = [
-        "websecure",
-      ]
-      "routes" = [
-        {
-          "kind"     = "Rule"
-          "match"    = "Host(`template.${var.host}`)"
-          "services" = [
-            {
-              "name"   = "yaufs-template-service"
-              "port"   = 8000
-              "scheme" = "h2c"
-            },
-          ]
-        },
-      ]
-    }
-  })
-}

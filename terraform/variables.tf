@@ -10,5 +10,5 @@ variable "host" {
 
 variable "zitadel_org" {
   type    = string
-  default = "yaufs-org"
+  default = "yaufs"
 }
