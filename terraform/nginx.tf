@@ -46,9 +46,6 @@ resource "helm_release" "nginx" {
         "podAnnotations" = {
           "linkerd.io/inject" = "enabled"
         }
-        "annotations" = {
-          "sidecar.jaegertracing.io/inject" = "true"
-        }
         "extraArgs" = {
           "default-ssl-certificate" = "nginx/nginx-tls"
         }
@@ -61,8 +58,8 @@ resource "helm_release" "nginx" {
           }
         }
         "config" = {
-          enable-opentracing = "true"
-          jaeger-endpoint    = "http://localhost:5778/sampling"
+          enable-opentracing    = "true"
+          jaeger-collector-host = "jaeger-jaeger-operator-jaeger-agent.jaeger.svc.cluster.local"
         }
         "admissionWebhooks" = {
           "enabled" = false
@@ -90,6 +87,13 @@ resource "kubernetes_secret" "oauth2_proxy_vault_ca" {
   }
 }
 
+data "kubernetes_service" "nginx" {
+  metadata {
+    name      = "ingress-nginx-controller"
+    namespace = kubernetes_namespace.nginx.metadata[0].name
+  }
+}
+
 resource "helm_release" "oauth2_proxy" {
   name       = "oauth2-proxy"
   namespace  = kubernetes_namespace.nginx.metadata[0].name
@@ -102,7 +106,7 @@ resource "helm_release" "oauth2_proxy" {
     yamlencode({
       "hostAlias" = {
         "enabled"  = true
-        "ip"       = "10.43.154.247"
+        "ip"       = data.kubernetes_service.nginx.spec.0.cluster_ip
         "hostname" = "auth.${var.host}"
       }
       "podAnnotations" = {

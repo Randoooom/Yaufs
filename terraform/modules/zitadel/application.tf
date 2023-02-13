@@ -1,8 +1,8 @@
 resource "zitadel_application_oidc" "nginx" {
-  depends_on = [zitadel_org.yaufs_internal, zitadel_project.yaufs_internal]
+  depends_on = [zitadel_org.yaufs, zitadel_project.yaufs_internal]
 
   project_id = zitadel_project.yaufs_internal.id
-  org_id     = zitadel_org.yaufs_internal.id
+  org_id     = zitadel_org.yaufs.id
 
   name                        = "nginx"
   redirect_uris               = ["https://${var.host}/oauth2/callback"]

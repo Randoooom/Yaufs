@@ -105,7 +105,7 @@ resource "helm_release" "prometheus" {
           "hosts"            = ["monitoring.${var.host}"]
           "annotations"      = {
             "nginx.ingress.kubernetes.io/auth-url"    = "http://oauth2-proxy.nginx.svc.cluster.local:80/oauth2/auth"
-            "nginx.ingress.kubernetes.io/auth-signin" = "https://${var.host}/oauth2/start?rd=$request_uri"
+            "nginx.ingress.kubernetes.io/auth-signin" = "https://${var.host}/oauth2/start?rd=$scheme://$host$request_uri"
           }
         }
       }
