@@ -28,6 +28,8 @@ pub enum YaufsError {
     SurrealdbError(#[from] surrealdb::Error),
     #[error("{0}")]
     InternalServerError(String),
+    #[error(transparent)]
+    IOError(#[from] std::io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, YaufsError>;
@@ -42,9 +44,7 @@ impl From<YaufsError> for Status {
             YaufsError::SurrealdbError(_) => {
                 Status::internal("Error occurred while calling database")
             }
-            YaufsError::InternalServerError(_) => {
-                Status::internal("Error occurred while processing the request")
-            }
+            _ => Status::internal("Error occurred while processing the request"),
         }
     }
 }

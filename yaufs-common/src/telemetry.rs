@@ -14,9 +14,9 @@
  *    limitations under the License.
  */
 
-#[cfg(not(feature = "testing"))]
+#[cfg(not(debug_assertions))]
 use opentelemetry::global;
-#[cfg(not(feature = "testing"))]
+#[cfg(not(debug_assertions))]
 use opentelemetry::sdk::propagation::TraceContextPropagator;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
@@ -31,7 +31,7 @@ pub fn init_tracing(service_name: &'static str) {
         .with(EnvFilter::from_default_env());
 
     cfg_if::cfg_if! {
-        if #[cfg(not(feature = "testing"))] {
+        if #[cfg(not(debug_assertions))] {
             global::set_text_map_propagator(TraceContextPropagator::new());
             let tracer = opentelemetry_jaeger::new_agent_pipeline()
                 .with_service_name(service_name)

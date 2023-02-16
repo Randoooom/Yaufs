@@ -14,12 +14,14 @@
  *    limitations under the License.
  */
 
-pub mod database;
-pub mod error;
-pub mod oidc;
-pub mod proto;
-pub mod telemetry;
-pub mod tonic;
-pub mod tower;
-
-mod util;
+#[macro_export]
+macro_rules! map_internal_error {
+    ($expr:expr, $reason:expr) => {
+        $expr.map_err(|error| {
+            crate::error::YaufsError::InternalServerError(format!(
+                concat!($reason, ": {:?}"),
+                error
+            ))
+        })
+    };
+}

@@ -14,13 +14,11 @@
  *    limitations under the License.
  */
 
-use crate::auth::{AdditionalClaims, OPENID_CLIENT};
 use crate::error::YaufsError;
+use crate::oidc::OIDC_CLIENT;
 use hyper::header::AUTHORIZATION;
 use hyper::{Body, Request};
-use openidconnect::core::CoreGenderClaim;
-use openidconnect::reqwest::async_http_client;
-use openidconnect::{AccessToken, TokenIntrospectionResponse, UserInfoClaims};
+use openidconnect::{Scope, TokenIntrospectionResponse};
 use std::error::Error;
 use std::task::{Context, Poll};
 use tonic::codegen::BoxFuture;
@@ -28,16 +26,12 @@ use tower::{Layer, Service};
 
 #[derive(Debug, Clone)]
 pub struct AuthenticationLayer {
-    group: Option<&'static str>,
+    roles: Vec<&'static str>,
 }
 
-impl From<Option<&'static str>> for AuthenticationLayer {
-    fn from(group: Option<&'static str>) -> Self {
-        tokio::spawn(async {
-            OPENID_CLIENT.get().await;
-        });
-
-        Self { group }
+impl From<Vec<&'static str>> for AuthenticationLayer {
+    fn from(roles: Vec<&'static str>) -> Self {
+        Self { roles }
     }
 }
 
@@ -47,7 +41,12 @@ impl<S> Layer<S> for AuthenticationLayer {
     fn layer(&self, service: S) -> Self::Service {
         AuthenticationMiddleware {
             inner: service,
-            group: self.group,
+            roles: self
+                .roles
+                .clone()
+                .into_iter()
+                .map(|role| Scope::new(format!("urn:zitadel:iam:org:project:role:{}", { role })))
+                .collect::<Vec<Scope>>(),
         }
     }
 }
@@ -55,7 +54,7 @@ impl<S> Layer<S> for AuthenticationLayer {
 #[derive(Debug, Clone)]
 pub struct AuthenticationMiddleware<S> {
     inner: S,
-    group: Option<&'static str>,
+    roles: Vec<Scope>,
 }
 
 impl<S> Service<Request<Body>> for AuthenticationMiddleware<S>
@@ -73,7 +72,7 @@ where
     }
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
-        let group = self.group;
+        let roles = self.roles.clone();
         let inner = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, inner);
 
@@ -81,46 +80,22 @@ where
             // extract the Authorization header
             match request.headers().get(AUTHORIZATION) {
                 Some(value) => {
-                    // verify the accessToken
-                    let access_token = AccessToken::new(
-                        value
-                            .to_str()
-                            .map_err(|_| YaufsError::Unauthorized)?
-                            .to_string(),
-                    );
-                    let response = OPENID_CLIENT
-                        .get()
-                        .await
-                        .introspect(&access_token)?
-                        .request_async(async_http_client)
-                        .await?;
-                    // if the token is not valid anymore reject the request
-                    if !response.active() {
+                    // parse the token as str
+                    let token = value.to_str().map_err(|_| YaufsError::Unauthorized)?;
+                    // introspect the given token
+                    let response = OIDC_CLIENT.get().await.introspect(token).await?;
+
+                    // only allow further processing of the incoming request, if the given token
+                    // is still in an active state and the token has the scopes for the required roles
+                    let has_scopes = if let Some(scopes) = response.scopes() {
+                        roles.iter().all(|role| scopes.contains(&role))
+                    } else {
+                        // we can omit false here as the scope 'openid' has to be everywhere
+                        false
+                    };
+                    if !response.active() || !has_scopes {
                         return Err(YaufsError::Unauthorized)?;
-                    }
-
-                    // if the middleware has to verify the ownership of a role fetch the userinfo
-                    if let Some(group) = group {
-                        // fetch the userinfo
-                        let claims: UserInfoClaims<AdditionalClaims, CoreGenderClaim> =
-                            OPENID_CLIENT
-                                .get()
-                                .await
-                                .user_info(access_token, None)?
-                                .request_async::<_, _, _, CoreGenderClaim, _>(async_http_client)
-                                .await?;
-
-                        // search for the required group
-                        if None
-                            == claims
-                                .additional_claims()
-                                .groups
-                                .iter()
-                                .find(|current| current.as_str().eq(group))
-                        {
-                            return Err(YaufsError::Unauthorized)?;
-                        }
-                    }
+                    };
 
                     // call the next layer and return the response
                     let response = inner.call(request).await.map_err(Into::into)?;
