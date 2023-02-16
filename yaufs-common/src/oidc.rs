@@ -42,6 +42,9 @@ pub async fn obtain_access_token(
     issuer: &str,
     authentication_options: &AuthenticationOptions,
 ) -> String {
+    let span = tracing::info_span!("Authenticating on OIDC provider");
+    let _ = span.enter();
+
     service_account
         .authenticate_with_options(issuer, authentication_options)
         .await
@@ -101,6 +104,7 @@ impl OIDCClient {
     /// Gain a new access token from the oidc provider. The access token will be cached
     /// for an half hour by the cached macro annotation on the sub function. This optimizes
     /// the time usage of all incoming requests overall.
+    #[tracing::instrument(skip_all)]
     pub async fn obtain_access_token(&self) -> Result<String> {
         Ok(obtain_access_token(
             &self.service_account,
@@ -112,6 +116,7 @@ impl OIDCClient {
 
     /// Introspect a given access token. This validates the integrity of an sent access token
     /// on the oidc provider. Caching is not supported due the ability of revocation.
+    #[tracing::instrument(skip_all, err)]
     pub async fn introspect(&self, token: &str) -> Result<ZitadelIntrospectionResponse> {
         map_internal_error!(
             zitadel::oidc::introspection::introspect(

@@ -77,14 +77,25 @@ where
         let mut inner = std::mem::replace(&mut self.inner, inner);
 
         Box::pin(async move {
+            let span = tracing::info_span!("Authorizing request");
+            let _ = span.enter();
+
             // extract the Authorization header
             match request.headers().get(AUTHORIZATION) {
                 Some(value) => {
+                    let introspection_span = tracing::info_span!("Introspecting token");
+                    let introspection_guard = introspection_span.enter();
+
+                    let span = tracing::info_span!("Calling introspection endpoint");
+                    let guard = span.enter();
                     // parse the token as str
                     let token = value.to_str().map_err(|_| YaufsError::Unauthorized)?;
                     // introspect the given token
                     let response = OIDC_CLIENT.get().await.introspect(token).await?;
+                    drop(guard);
 
+                    let span = tracing::info_span!("Processing response");
+                    let _ = span.enter();
                     // only allow further processing of the incoming request, if the given token
                     // is still in an active state and the token has the scopes for the required roles
                     let has_scopes = if let Some(scopes) = response.scopes() {
@@ -96,6 +107,7 @@ where
                     if !response.active() || !has_scopes {
                         return Err(YaufsError::Unauthorized)?;
                     };
+                    drop(introspection_guard);
 
                     // call the next layer and return the response
                     let response = inner.call(request).await.map_err(Into::into)?;
