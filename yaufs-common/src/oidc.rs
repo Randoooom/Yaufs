@@ -25,6 +25,7 @@ use zitadel::oidc::introspection::{AuthorityAuthentication, ZitadelIntrospection
 
 const ISSUER: &str = "OIDC_ISSUER";
 const SERVICE_ACCOUNT: &str = "OIDC_SERVICE_ACCOUNT_KEY_PATH";
+const ROLES: &str = "OIDC_SERVICE_ACCOUNT_ROLES";
 const APPLICATION: &str = "OIDC_APPLICATION_KEY_PATH";
 
 #[derive(Clone, Debug)]
@@ -50,7 +51,7 @@ pub async fn obtain_access_token(
 impl OIDCClient {
     /// Create a new instance based on the set env variables. This will panic if they're set in an
     /// incompatible matter since the security of all applications rely on it.
-    pub async fn new_from_env(roles: Vec<String>) -> Result<Self> {
+    pub async fn new_from_env() -> Result<Self> {
         // access the process env vars
         let issuer = std::env::var(ISSUER).unwrap_or_else(|_| panic!("missing env var {ISSUER}"));
         let service_account_key_path = std::env::var(SERVICE_ACCOUNT)
@@ -74,6 +75,13 @@ impl OIDCClient {
             .unwrap_or_else(|error| {
                 panic!("Error occured while discovering the oidc endpoints: {error}")
             });
+
+        // read the roles into vec based on the set env variable
+        let roles = std::env::var(ROLES)
+            .unwrap_or_else(|_| panic!("missing env var {ROLES}"))
+            .split(",")
+            .map(ToString::to_string)
+            .collect::<Vec<String>>();
 
         let authentication_options = AuthenticationOptions {
             api_access: false,
@@ -125,5 +133,5 @@ impl OIDCClient {
 
 lazy_static! {
     pub static ref OIDC_CLIENT: AsyncOnce<OIDCClient> =
-        AsyncOnce::new(async { OIDCClient::new_from_env(Vec::new()).await.unwrap() });
+        AsyncOnce::new(async { OIDCClient::new_from_env().await.unwrap() });
 }
