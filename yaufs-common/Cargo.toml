@@ -11,7 +11,6 @@ opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 serde = { version = "1.0.152", features = ["derive"] }
 nanoid = { version = "0.4.0", optional = true }
-openidconnect = { version = "2.5.0", default-features = false, features = ["reqwest", "native-tls"] }
 zitadel = { version = "3.0.5", features = ["credentials", "oidc"] }
 
 hyper = "0.14.23"
@@ -27,6 +26,7 @@ opentelemetry = "0.18.0"
 tracing-opentelemetry = "0.18.0"
 prost = "0.11.6"
 cached = "0.42.0"
+openidconnect = "2.5.0"
 
 [build-dependencies]
 tonic-build = "0.8.4"
