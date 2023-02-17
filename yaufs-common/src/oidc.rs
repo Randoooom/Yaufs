@@ -17,7 +17,8 @@
 use crate::error::{Result, YaufsError};
 use crate::map_internal_error;
 use cached::proc_macro::once;
-use openidconnect::{Scope, TokenIntrospectionResponse};
+use openidconnect::reqwest::async_http_client;
+use openidconnect::{IssuerUrl, Scope, TokenIntrospectionResponse};
 use zitadel::credentials::{Application, AuthenticationOptions, ServiceAccount};
 use zitadel::oidc::discovery::ZitadelProviderMetadata;
 use zitadel::oidc::introspection::{AuthorityAuthentication, ZitadelIntrospectionResponse};
@@ -76,11 +77,14 @@ impl OIDCClient {
             });
 
         // fetch the metadata
-        let metadata = zitadel::oidc::discovery::discover(issuer_endpoint.as_str())
-            .await
-            .unwrap_or_else(|error| {
-                panic!("Error occured while discovering the oidc endpoints: {error}")
-            });
+        let metadata = ZitadelProviderMetadata::discover_async(
+            IssuerUrl::new(issuer_endpoint).unwrap(),
+            async_http_client,
+        )
+        .await
+        .unwrap_or_else(|error| {
+            panic!("Error occured while discovering the oidc endpoints: {error}")
+        });
 
         let authentication_options = AuthenticationOptions {
             api_access: false,
