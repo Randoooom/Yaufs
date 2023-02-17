@@ -14,18 +14,16 @@
  *    limitations under the License.
  */
 
-use crate::error::Result;
+use crate::error::{Result, YaufsError};
 use crate::map_internal_error;
-use async_once::AsyncOnce;
 use cached::proc_macro::once;
-use lazy_static::lazy_static;
+use openidconnect::{Scope, TokenIntrospectionResponse};
 use zitadel::credentials::{Application, AuthenticationOptions, ServiceAccount};
 use zitadel::oidc::discovery::ZitadelProviderMetadata;
 use zitadel::oidc::introspection::{AuthorityAuthentication, ZitadelIntrospectionResponse};
 
 const ISSUER: &str = "OIDC_ISSUER";
 const SERVICE_ACCOUNT: &str = "OIDC_SERVICE_ACCOUNT_KEY_PATH";
-const ROLES: &str = "OIDC_SERVICE_ACCOUNT_ROLES";
 const APPLICATION: &str = "OIDC_APPLICATION_KEY_PATH";
 
 #[derive(Clone, Debug)]
@@ -34,6 +32,7 @@ pub struct OIDCClient {
     service_account: ServiceAccount,
     metadata: ZitadelProviderMetadata,
     authentication_options: AuthenticationOptions,
+    roles: Vec<Scope>,
 }
 
 #[once(time = 1800)]
@@ -54,7 +53,7 @@ pub async fn obtain_access_token(
 impl OIDCClient {
     /// Create a new instance based on the set env variables. This will panic if they're set in an
     /// incompatible matter since the security of all applications rely on it.
-    pub async fn new_from_env() -> Result<Self> {
+    pub async fn new_from_env(roles: Vec<String>) -> Result<Self> {
         // access the process env vars
         let issuer = std::env::var(ISSUER).unwrap_or_else(|_| panic!("missing env var {ISSUER}"));
         let service_account_key_path = std::env::var(SERVICE_ACCOUNT)
@@ -79,25 +78,24 @@ impl OIDCClient {
                 panic!("Error occured while discovering the oidc endpoints: {error}")
             });
 
-        // read the roles into vec based on the set env variable
-        let roles = std::env::var(ROLES)
-            .unwrap_or_else(|_| panic!("missing env var {ROLES}"))
-            .split(",")
-            .map(ToString::to_string)
-            .collect::<Vec<String>>();
-
         let authentication_options = AuthenticationOptions {
             api_access: false,
             scopes: Vec::new(),
-            roles,
+            roles: roles.clone(),
             project_audiences: Vec::new(),
         };
+
+        let roles = roles
+            .into_iter()
+            .map(|role| Scope::new(format!("urn:zitadel:iam:org:project:role:{}", { role })))
+            .collect::<Vec<Scope>>();
 
         Ok(Self {
             authority_authentication: AuthorityAuthentication::JWTProfile { application },
             service_account,
             metadata,
             authentication_options,
+            roles,
         })
     }
 
@@ -134,9 +132,25 @@ impl OIDCClient {
             "Error occurred while calling introspection endpoint"
         )
     }
-}
 
-lazy_static! {
-    pub static ref OIDC_CLIENT: AsyncOnce<OIDCClient> =
-        AsyncOnce::new(async { OIDCClient::new_from_env().await.unwrap() });
+    /// Calls the underlying introspection function and additonally directly verifies the active
+    /// state and the required roles defined by clients instance options.
+    #[tracing::instrument(skip_all)]
+    pub async fn introspect_token_valid(&self, token: &str) -> Result<()> {
+        let response = self.introspect(token).await?;
+
+        // determine if all required roles are given to the token
+        let has_scopes = if let Some(scopes) = response.scopes() {
+            self.roles.iter().all(|role| scopes.contains(&role))
+        } else {
+            // we can omit false here as the scope 'openid' has to be everywhere
+            false
+        };
+
+        return if !response.active() || !has_scopes {
+            Err(YaufsError::Unauthorized)
+        } else {
+            Ok(())
+        };
+    }
 }

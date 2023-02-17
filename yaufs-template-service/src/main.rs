@@ -20,14 +20,12 @@ extern crate async_trait;
 #[macro_use]
 extern crate tracing;
 
-use crate::prelude::*;
 use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
-// use yaufs_common::tower::auth::AuthenticationLayer;
 
 mod v1;
 
@@ -35,7 +33,13 @@ cfg_if::cfg_if! {
     if #[cfg(test)] {
         const ADDRESS: &str = "127.0.0.1:0";
     } else {
+        use yaufs_common::tower::auth::AuthenticationLayer;
+        use yaufs_common::oidc::OIDCClient;
+        use std::str::FromStr;
+        use std::net::SocketAddr;
+
         const ADDRESS: &str = "0.0.0.0:8000";
+        const HEALTH: &str = "0.0.0.0:8001";
     }
 }
 
@@ -64,19 +68,32 @@ async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std
     info!("Listening on {}", local_addr);
     let incoming = TcpIncoming::from_listener(listener, true, None).unwrap();
 
-    let tower_layer = tower::ServiceBuilder::new()
-        .layer(yaufs_common::tonic::trace_layer())
-        // .layer(AuthenticationLayer::from(Some("templating")))
-        .into_inner();
-    let reflection = tonic_reflection::server::Builder::configure()
-        .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
-        .build()
-        .unwrap();
+    cfg_if::cfg_if! {
+        if #[cfg(test)] {
+            let tower_layer = tower::ServiceBuilder::new()
+                .layer(yaufs_common::tonic::trace_layer())
+                .into_inner();
+        } else {
+            let tower_layer = tower::ServiceBuilder::new()
+                .layer(yaufs_common::tonic::trace_layer())
+                .layer(AuthenticationLayer::from(OIDCClient::new_from_env(Vec::new()).await?))
+                .into_inner();
+        }
+    }
+
     let join = tokio::spawn(async move {
+        // expose the health check and in future version the metrics
+        #[cfg(not(test))]
+        tokio::spawn(async move {
+            Server::builder()
+                .add_service(yaufs_common::tonic::init_health::<v1::Server>().await)
+                .serve(SocketAddr::from_str(HEALTH).unwrap())
+                .await
+                .unwrap()
+        });
+
         Server::builder()
             .layer(tower_layer)
-            .add_service(yaufs_common::tonic::init_health::<v1::Server>().await)
-            .add_service(reflection)
             .add_service(v1::new(surreal))
             .serve_with_incoming(incoming)
             .await

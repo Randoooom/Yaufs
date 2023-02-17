@@ -15,10 +15,9 @@
  */
 
 use crate::error::YaufsError;
-use crate::oidc::OIDC_CLIENT;
+use crate::oidc::OIDCClient;
 use hyper::header::AUTHORIZATION;
 use hyper::{Body, Request};
-use openidconnect::{Scope, TokenIntrospectionResponse};
 use std::error::Error;
 use std::task::{Context, Poll};
 use tonic::codegen::BoxFuture;
@@ -26,38 +25,33 @@ use tower::{Layer, Service};
 
 #[derive(Debug, Clone)]
 pub struct AuthenticationLayer {
-    roles: Vec<&'static str>,
+    client: OIDCClient,
 }
 
-impl From<Vec<&'static str>> for AuthenticationLayer {
-    fn from(roles: Vec<&'static str>) -> Self {
-        Self { roles }
+impl From<OIDCClient> for AuthenticationLayer {
+    fn from(client: OIDCClient) -> Self {
+        Self { client }
     }
 }
 
 impl<S> Layer<S> for AuthenticationLayer {
-    type Service = AuthenticationMiddleware<S>;
+    type Service = OIDCMiddleware<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        AuthenticationMiddleware {
+        OIDCMiddleware {
             inner: service,
-            roles: self
-                .roles
-                .clone()
-                .into_iter()
-                .map(|role| Scope::new(format!("urn:zitadel:iam:org:project:role:{}", { role })))
-                .collect::<Vec<Scope>>(),
+            client: self.client.clone(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthenticationMiddleware<S> {
+pub struct OIDCMiddleware<S> {
     inner: S,
-    roles: Vec<Scope>,
+    client: OIDCClient,
 }
 
-impl<S> Service<Request<Body>> for AuthenticationMiddleware<S>
+impl<S> Service<Request<Body>> for OIDCMiddleware<S>
 where
     S: Service<Request<Body>> + Send + Clone + 'static,
     S::Future: 'static + Send,
@@ -72,7 +66,7 @@ where
     }
 
     fn call(&mut self, request: Request<Body>) -> Self::Future {
-        let roles = self.roles.clone();
+        let client = self.client.clone();
         let inner = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, inner);
 
@@ -91,22 +85,8 @@ where
                     // parse the token as str
                     let token = value.to_str().map_err(|_| YaufsError::Unauthorized)?;
                     // introspect the given token
-                    let response = OIDC_CLIENT.get().await.introspect(token).await?;
+                    client.introspect_token_valid(token).await?;
                     drop(guard);
-
-                    let span = tracing::info_span!("Processing response");
-                    let _ = span.enter();
-                    // only allow further processing of the incoming request, if the given token
-                    // is still in an active state and the token has the scopes for the required roles
-                    let has_scopes = if let Some(scopes) = response.scopes() {
-                        roles.iter().all(|role| scopes.contains(&role))
-                    } else {
-                        // we can omit false here as the scope 'openid' has to be everywhere
-                        false
-                    };
-                    if !response.active() || !has_scopes {
-                        return Err(YaufsError::Unauthorized)?;
-                    };
                     drop(introspection_guard);
 
                     // call the next layer and return the response
