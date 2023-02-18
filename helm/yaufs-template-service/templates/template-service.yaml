@@ -50,8 +50,6 @@ spec:
                   key: password
             - name: OIDC_ISSUER
               value: {{ .Values.oidc.issuer }}
-            - name: OIDC_ISSUER_ENDPOINT
-              value: {{ .Values.oidc.issuer }}
             - name: OIDC_SERVICE_ACCOUNT_KEY_PATH
               value: /mnt/oidc/{{ .Values.oidc.serviceAccountKeyKey }}
             - name: OIDC_APPLICATION_KEY_PATH

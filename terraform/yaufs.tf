@@ -44,7 +44,7 @@ resource "helm_release" "yaufs_template_service" {
 
   values = [
     yamlencode({
-      "logLevel" = "Trace",
+      "logLevel" = "Debug",
       "oidc"     = {
         "issuer"    = "https://auth.${var.host}"
         "hostAlias" = {
