@@ -4,6 +4,19 @@ image: ghcr.io/randoooom/yaufs-template-service:nightly
 annotations:
 podAnnotations:
 
+oidc:
+  hostAlias:
+    enabled: false
+    ip: ""
+    hostname: ""
+
+  issuer: ""
+  secret: oidc-keys
+  serviceAccountKeyKey: service-account-json
+  applicationKeyKey: application-json
+
+  caSecret: ""
+
 service:
   name: yaufs-template-service
   type: ClusterIP

@@ -13,6 +13,8 @@ resource "zitadel_project" "yaufs_internal" {
   private_labeling_setting = "PRIVATE_LABELING_SETTING_ENFORCE_PROJECT_RESOURCE_OWNER_POLICY"
 }
 
+################################################################
+
 resource "zitadel_project_role" "internal_admin" {
   depends_on = [zitadel_org.yaufs, zitadel_project.yaufs_internal]
 
@@ -22,6 +24,18 @@ resource "zitadel_project_role" "internal_admin" {
   display_name = "Administration"
   group        = "Administration"
 }
+
+resource "zitadel_project_role" "templating" {
+  depends_on = [zitadel_org.yaufs, zitadel_project.yaufs_internal]
+
+  org_id       = zitadel_org.yaufs.id
+  project_id   = zitadel_project.yaufs_internal.id
+  role_key     = "templating"
+  display_name = "Templating"
+  group        = "Enginnering"
+}
+
+################################################################
 
 resource "zitadel_project_grant" "internal_project_grant" {
   depends_on = [zitadel_project.yaufs_internal, zitadel_org.yaufs, zitadel_project_role.internal_admin]

@@ -24,7 +24,6 @@ use zitadel::oidc::discovery::ZitadelProviderMetadata;
 use zitadel::oidc::introspection::{AuthorityAuthentication, ZitadelIntrospectionResponse};
 
 const ISSUER: &str = "OIDC_ISSUER";
-const ISSUER_ENDPOINT: &str = "OIDC_ISSUER_ENDPOINT";
 const SERVICE_ACCOUNT: &str = "OIDC_SERVICE_ACCOUNT_KEY_PATH";
 const APPLICATION: &str = "OIDC_APPLICATION_KEY_PATH";
 
@@ -58,8 +57,6 @@ impl OIDCClient {
     /// incompatible matter since the security of all applications rely on it.
     pub async fn new_from_env(roles: Vec<String>) -> Result<Self> {
         // access the process env vars
-        let issuer_endpoint = std::env::var(ISSUER_ENDPOINT)
-            .unwrap_or_else(|_| panic!("missing env var {ISSUER_ENDPOINT}"));
         let issuer = std::env::var(ISSUER).unwrap_or_else(|_| panic!("missing env var {ISSUER}"));
         let service_account_key_path = std::env::var(SERVICE_ACCOUNT)
             .unwrap_or_else(|_| panic!("missing env var {SERVICE_ACCOUNT}"));
@@ -78,7 +75,7 @@ impl OIDCClient {
 
         // fetch the metadata
         let metadata = ZitadelProviderMetadata::discover_async(
-            IssuerUrl::new(issuer_endpoint).unwrap(),
+            IssuerUrl::new(issuer.clone()).unwrap(),
             async_http_client,
         )
         .await

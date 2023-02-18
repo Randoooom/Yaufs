@@ -23,6 +23,12 @@ spec:
         {{ $key }}: {{ $value | quote }}
         {{- end }}
     spec:
+      {{ if .Values.oidc.hostAlias.enabled }}
+      hostAliases:
+        - ip: {{ .Values.oidc.hostAlias.ip }}
+          hostnames:
+            - {{ .Values.oidc.hostAlias.hostname }}
+      {{- end  }}
       serviceAccountName: template-service
       containers:
         - image: {{ .Values.image }}
@@ -42,28 +48,59 @@ spec:
                 secretKeyRef:
                   name: surrealdb-credentials
                   key: password
+            - name: OIDC_ISSUER
+              value: {{ .Values.oidc.issuer }}
+            - name: OIDC_ISSUER_ENDPOINT
+              value: {{ .Values.oidc.issuer }}
+            - name: OIDC_SERVICE_ACCOUNT_KEY_PATH
+              value: /mnt/oidc/{{ .Values.oidc.serviceAccountKeyKey }}
+            - name: OIDC_APPLICATION_KEY_PATH
+              value: /mnt/oidc/{{ .Values.oidc.applicationKeyKey }}
           volumeMounts:
+            - name: oidc-credentials
+              mountPath: "/mnt/oidc"
             - name: secrets-store
               mountPath: "/mnt/secrets-store"
               readOnly: true
+            - name: custom-ca
+              mountPath: /etc/ssl
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
+              name: grpc
+            - containerPort: 8001
+              name: health
           livenessProbe:
             grpc:
-              port: 8000
+              port: 8001
             initialDelaySeconds: 5
             periodSeconds: 5
           readinessProbe:
             grpc:
-              port: 8000
+              port: 8001
             initialDelaySeconds: 5
             periodSeconds: 5
       initContainers:
+        - name: prepare-ca
+          image: debian:stable
+          command: ['sh', '-c', 'apt update; apt install ca-certificates -y; update-ca-certificates; cp -R /etc/ssl/* /var/lib/data/ssl']
+          volumeMounts:
+            - name: custom-ca
+              mountPath: /var/lib/data/ssl
+            - name: vault-ca
+              mountPath: /usr/local/share/ca-certificates/
         - name: init-surrealdb
           image: busybox:1.28
           command: [ 'sh', '-c', "until nslookup surrealdb.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for surrealdb; sleep 2; done; sleep 30" ]
       volumes:
+        - name: oidc-credentials
+          secret:
+            secretName: {{ .Values.oidc.secret }}
+        - name: vault-ca
+          secret:
+            secretName: {{ .Values.oidc.caSecret }}
+        - name: custom-ca
+          emptyDir: {}
         - name: secrets-store
           csi:
             driver: secrets-store.csi.k8s.io

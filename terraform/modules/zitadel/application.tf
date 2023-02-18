@@ -32,5 +32,41 @@ resource "zitadel_application_api" "template_service" {
   org_id           = zitadel_org.yaufs.id
   project_id       = zitadel_project.yaufs_internal.id
   name             = "template-service"
-  auth_method_type = "API_AUTH_METHOD_TYPE_BASIC"
+  auth_method_type = "API_AUTH_METHOD_TYPE_PRIVATE_KEY_JWT"
+}
+
+resource "zitadel_application_key" "template_service" {
+  depends_on = [zitadel_application_api.template_service]
+
+  org_id     = zitadel_org.yaufs.id
+  project_id = zitadel_project.yaufs_internal.id
+  app_id     = zitadel_application_api.template_service.id
+  key_type   = "KEY_TYPE_JSON"
+  expiration_date = "2519-04-01T08:45:00Z"
+}
+resource "zitadel_machine_user" "template_service" {
+  depends_on = [zitadel_org.yaufs]
+
+  org_id    = zitadel_org.yaufs.id
+  user_name = "templat-service@${var.host}"
+  name      = "template-service"
+}
+
+resource "zitadel_machine_key" "template_service" {
+  depends_on = [zitadel_machine_user.template_service]
+
+  org_id   = zitadel_org.yaufs.id
+  user_id  = zitadel_machine_user.template_service.id
+  key_type = "KEY_TYPE_JSON"
+}
+
+resource "zitadel_user_grant" "template_service" {
+  depends_on = [
+    zitadel_org.yaufs, zitadel_project.yaufs_internal, zitadel_machine_user.template_service,
+  ]
+
+  org_id     = zitadel_org.yaufs.id
+  project_id = zitadel_project.yaufs_internal.id
+  user_id    = zitadel_machine_user.template_service.id
+  role_keys  = ["templating"]
 }

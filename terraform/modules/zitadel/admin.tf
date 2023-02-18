@@ -38,7 +38,7 @@ resource "zitadel_user_grant" "internal_user_grant_admin" {
   org_id     = zitadel_org.yaufs.id
   project_id = zitadel_project.yaufs_internal.id
   user_id    = zitadel_human_user.zitadel_org_admin.id
-  role_keys  = ["admin"]
+  role_keys  = ["admin", "templating"]
 }
 
 resource "zitadel_instance_member" "admin" {
