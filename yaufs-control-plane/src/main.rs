@@ -20,12 +20,11 @@ extern crate async_trait;
 #[macro_use]
 extern crate tracing;
 
-use surrealdb::engine::remote::ws::Client;
-use surrealdb::Surreal;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
+use yaufs_common::skytable::ddl::Keymap;
 
 mod v1;
 
@@ -45,21 +44,16 @@ cfg_if::cfg_if! {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, _, join) = init().await?;
+    let (_, join) = init().await?;
     join.await?;
 
     Ok(())
 }
 
-async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std::error::Error>> {
+async fn init() -> Result<(String, JoinHandle<()>), Box<dyn std::error::Error>> {
     yaufs_common::init_telemetry!();
-    // connect to the surrealdb instance
-    let surreal =
-        yaufs_common::database::surrealdb::connect(include_str!("./surrealql/up.surrealql"))
-            .await?;
-    let client = surreal.clone();
-    // execute possible migrations
-    yaufs_common::database::surrealdb::migrate(&surreal, env!("CARGO_PKG_VERSION"), vec![]).await?;
+    // connect to the skytable kv server
+    let skytable = yaufs_common::database::skytable::connect().await?;
 
     // start tonic serve on specified address
     info!("Starting grpc server on {ADDRESS}");
@@ -94,17 +88,17 @@ async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std
 
         Server::builder()
             .layer(tower_layer)
-            .add_service(v1::new(surreal))
+            .add_service(v1::new(skytable))
             .serve_with_incoming(incoming)
             .await
             .unwrap()
     });
 
-    Ok((format!("ws://{local_addr}"), client, join))
+    Ok((format!("ws://{local_addr}"), join))
 }
 
 pub mod prelude {
     pub use tonic::{Request, Response, Status};
-    pub use yaufs_common::sql_span;
-    pub use yaufs_common::yaufs_proto::template_service_v1::*;
+    pub use yaufs_common::kv_span;
+    pub use yaufs_common::yaufs_proto::control_plane_v1::*;
 }

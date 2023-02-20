@@ -1,5 +1,4 @@
 syntax = "proto3";
-import "google/protobuf/timestamp.proto";
 
 package template_service_v1;
 
@@ -18,8 +17,8 @@ message TemplateId {
 }
 
 message ListTemplatesRequest {
-  uint32 page_size = 2;
-  string page_token = 3;
+  uint32 page_size = 1;
+  string page_token = 2;
 }
 
 message ListTemplatesResponse {

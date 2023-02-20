@@ -14,6 +14,21 @@
  *    limitations under the License.
  */
 
-pub mod template_service_v1 {
-    tonic::include_proto!("template_service_v1");
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tonic_build::configure()
+        .type_attribute("CreateTemplateRequest", "#[derive(serde::Serialize)]")
+        .type_attribute(
+            "Template",
+            "#[derive(serde::Serialize, serde::Deserialize)]",
+        )
+        .compile(&["../proto/template-service-v1.proto"], &["../proto"])?;
+
+    tonic_build::configure()
+        .type_attribute(
+            "Instance",
+            "#[derive(serde::Serialize, serde::Deserialize, IntoSkyhashBytes, FromSkyhashBytes)]",
+        )
+        .compile(&["../proto/control-plane-v1.proto"], &["../proto"])?;
+
+    Ok(())
 }

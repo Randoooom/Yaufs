@@ -24,8 +24,15 @@ pub enum YaufsError {
     NotFound(&'static str),
     #[error("Unauthorized")]
     Unauthorized,
+    #[cfg(feature = "surrealdb")]
     #[error(transparent)]
     SurrealdbError(#[from] surrealdb::Error),
+    #[cfg(feature = "skytable")]
+    #[error(transparent)]
+    SkytableError(#[from] skytable::error::Error),
+    #[cfg(feature = "skytable")]
+    #[error(transparent)]
+    SkytablePoolError(#[from] skytable::pool::bb8Error<skytable::error::Error>),
     #[error("{0}")]
     InternalServerError(String),
     #[error(transparent)]
@@ -41,9 +48,6 @@ impl From<YaufsError> for Status {
         match value {
             YaufsError::NotFound(message) => Status::not_found(message),
             YaufsError::Unauthorized => Status::unauthenticated(value.to_string()),
-            YaufsError::SurrealdbError(_) => {
-                Status::internal("Error occurred while calling database")
-            }
             _ => Status::internal("Error occurred while processing the request"),
         }
     }

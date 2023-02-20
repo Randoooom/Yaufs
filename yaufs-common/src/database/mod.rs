@@ -15,4 +15,7 @@
  */
 
 pub mod paging;
+#[cfg(feature = "skytable")]
+pub mod skytable;
+#[cfg(feature = "surrealdb")]
 pub mod surrealdb;

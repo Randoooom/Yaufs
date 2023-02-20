@@ -14,10 +14,15 @@
  *    limitations under the License.
  */
 
+#[cfg(feature = "skytable")]
+pub extern crate skytable;
+#[cfg(feature = "surrealdb")]
+pub extern crate surrealdb;
+pub extern crate yaufs_proto;
+
 pub mod database;
 pub mod error;
 pub mod oidc;
-pub mod proto;
 pub mod telemetry;
 pub mod tonic;
 pub mod tower;

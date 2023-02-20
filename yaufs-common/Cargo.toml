@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "db4ac267c2e40f84377d95be242a3a55094e7ecf" }
+yaufs-proto = { path = "../yaufs-proto" }
+
+skytable = { version = "0.7.3", features = ["aio"], optional = true }
+surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "db4ac267c2e40f84377d95be242a3a55094e7ecf", optional = true }
 tokio = { version = "1.24.1", features = ["rt"] }
 tower-http = { version = "0.3.5", features = ["trace"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
@@ -12,6 +15,7 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 serde = { version = "1.0.152", features = ["derive"] }
 nanoid = { version = "0.4.0", optional = true }
 zitadel = { version = "3.0.5", features = ["credentials", "oidc"] }
+generic-array = { version = "0.14.6", optional = true }
 
 hyper = "0.14.23"
 tower = "0.4.13"
@@ -24,12 +28,12 @@ tonic = "0.8.3"
 tonic-health = "0.8.0"
 opentelemetry = "0.18.0"
 tracing-opentelemetry = "0.18.0"
-prost = "0.11.6"
 cached = "0.42.0"
 openidconnect = "2.5.0"
 
-[build-dependencies]
-tonic-build = "0.8.4"
-
 [features]
+default = ["surrealdb", "skytable"]
+
 testing = ["dep:nanoid"]
+surrealdb = ["dep:surrealdb"]
+skytable = ["dep:skytable", "dep:generic-array"]

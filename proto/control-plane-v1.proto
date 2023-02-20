@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package control_plane_v1;
+
+service ControlPlaneV1 {
+  rpc StartInstance (StartInstanceRequest) returns (StartInstanceResponse) {}
+
+  rpc ListInstances (ListInstancesRequest) returns (ListInstancesResponse) {}
+
+  rpc ListActiveInstances (Empty) returns (ListInstancesResponse) {}
+
+  rpc getInstance (InstanceId) returns (Instance) {}
+
+  rpc StopInstance (InstanceId) returns (StopInstanceResponse) {}
+}
+
+message InstanceId {
+  string id = 1;
+  string template_id = 2;
+}
+
+message Instance {
+  string id = 1;
+  string template_id = 2;
+  string created_at = 3;
+}
+
+message StartInstanceRequest {
+  string template_id = 1;
+  string count = 2;
+}
+
+message StartInstanceResponse {
+  repeated Instance instances = 1;
+}
+
+message ListInstancesRequest {
+  string template_id = 1;
+}
+
+message ListInstancesResponse {
+  repeated Instance instances = 1;
+}
+
+message StopInstanceResponse {
+  bool success = 1;
+  Instance instance = 2;
+}
+
+message Empty {}

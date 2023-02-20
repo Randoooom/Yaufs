@@ -1,14 +1,12 @@
 [package]
-name = "yaufs-template-service"
-version = "0.2.2"
+name = "yaufs-control-plane"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-yaufs-common = { path = "../yaufs-common", features = ["surrealdb"], default-features = false }
-
-surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "db4ac267c2e40f84377d95be242a3a55094e7ecf" }
+yaufs-common = { path = "../yaufs-common", features = ["skytable"], default-features = false }
 
 tokio = { version = "1.23.0", features = ["full"] }
 serde = { version = "1.0.152", features = ["derive"] }
