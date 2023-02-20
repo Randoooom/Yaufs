@@ -15,9 +15,11 @@
  */
 
 use crate::prelude::*;
+use fluvio::TopicProducer;
 use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use yaufs_common::error::{Result, YaufsError};
+use yaufs_common::yaufs_proto::fluvio::{TemplateCreated, TemplateDeleted, YaufsEvent};
 
 pub async fn get_template(
     surreal: &Surreal<Client>,
@@ -63,22 +65,40 @@ pub async fn list_templates(
 
 pub async fn delete_template(
     surreal: &Surreal<Client>,
+    producer: &Option<&TopicProducer>,
     request: Request<TemplateId>,
 ) -> Result<Response<Empty>> {
     let data = request.into_inner();
 
-    sql_span!(surreal.delete(("template", data.id)).await)?;
+    sql_span!(surreal.delete(("template", &data.id)).await)?;
+    // emit the event
+    #[cfg(not(test))]
+    producer
+        .unwrap()
+        .send(YaufsEvent::TEMPLATE_DELETED, TemplateDeleted::new(data.id))
+        .await?;
 
     Ok(Response::new(Empty {}))
 }
 
 pub async fn create_template(
     surreal: &Surreal<Client>,
+    producer: &Option<&TopicProducer>,
     request: Request<CreateTemplateRequest>,
 ) -> Result<Response<Template>> {
     let data = request.into_inner();
     // create the template
     let template: Template = sql_span!(surreal.create("template").content(data).await)?;
+
+    // emit the creation event
+    #[cfg(not(test))]
+    producer
+        .unwrap()
+        .send(
+            YaufsEvent::TEMPLATE_CREATED,
+            TemplateCreated::new(&template.id),
+        )
+        .await?;
 
     Ok(Response::new(template))
 }

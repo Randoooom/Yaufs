@@ -14,6 +14,8 @@
  *    limitations under the License.
  */
 
+#[cfg(feature = "fluvio")]
+pub extern crate fluvio;
 #[cfg(feature = "skytable")]
 pub extern crate skytable;
 #[cfg(feature = "surrealdb")]
@@ -22,6 +24,8 @@ pub extern crate yaufs_proto;
 
 pub mod database;
 pub mod error;
+#[cfg(feature = "fluvio")]
+pub mod fluvio_util;
 pub mod oidc;
 pub mod telemetry;
 pub mod tonic;

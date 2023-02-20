@@ -8,3 +8,7 @@ yaufs-apisix-request-id/
 
 yaufs-common/target/
 yaufs-template-service/target/
+yaufs-codegen/target/
+yaufs-control-plane/target/
+yaufs-proto/target/
+.github/

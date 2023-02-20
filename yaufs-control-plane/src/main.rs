@@ -1,3 +1,4 @@
+#![feature(iterator_try_collect)]
 /*
  *    Copyright  2023.  Fritz Ochsmann
  *
@@ -19,13 +20,16 @@ extern crate serde;
 extern crate async_trait;
 #[macro_use]
 extern crate tracing;
+#[macro_use]
+extern crate kube;
 
+use kube::Client;
 use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 use tonic::transport::server::TcpIncoming;
 use tonic::transport::Server;
-use yaufs_common::skytable::ddl::Keymap;
 
+mod controller;
 mod v1;
 
 cfg_if::cfg_if! {
@@ -44,16 +48,22 @@ cfg_if::cfg_if! {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (_, join) = init().await?;
+    let (_, client, join) = init().await?;
+    // start the kubernetes controller
+    tokio::spawn(async move {
+        controller::init(client).await.unwrap();
+    });
     join.await?;
 
     Ok(())
 }
 
-async fn init() -> Result<(String, JoinHandle<()>), Box<dyn std::error::Error>> {
+async fn init() -> Result<(String, Client, JoinHandle<()>), Box<dyn std::error::Error>> {
     yaufs_common::init_telemetry!();
     // connect to the skytable kv server
     let skytable = yaufs_common::database::skytable::connect().await?;
+    // connect to kubernetes
+    let client = Client::try_default().await?;
 
     // start tonic serve on specified address
     info!("Starting grpc server on {ADDRESS}");
@@ -75,6 +85,7 @@ async fn init() -> Result<(String, JoinHandle<()>), Box<dyn std::error::Error>> 
         }
     }
 
+    let service = v1::new(skytable, client.clone()).await?;
     let join = tokio::spawn(async move {
         // expose the health check and in future version the metrics
         #[cfg(not(test))]
@@ -88,13 +99,13 @@ async fn init() -> Result<(String, JoinHandle<()>), Box<dyn std::error::Error>> 
 
         Server::builder()
             .layer(tower_layer)
-            .add_service(v1::new(skytable))
+            .add_service(service)
             .serve_with_incoming(incoming)
             .await
             .unwrap()
     });
 
-    Ok((format!("ws://{local_addr}"), join))
+    Ok((format!("ws://{local_addr}"), client, join))
 }
 
 pub mod prelude {

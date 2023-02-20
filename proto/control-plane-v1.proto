@@ -7,8 +7,6 @@ service ControlPlaneV1 {
 
   rpc ListInstances (ListInstancesRequest) returns (ListInstancesResponse) {}
 
-  rpc ListActiveInstances (Empty) returns (ListInstancesResponse) {}
-
   rpc getInstance (InstanceId) returns (Instance) {}
 
   rpc StopInstance (InstanceId) returns (StopInstanceResponse) {}
@@ -46,5 +44,3 @@ message StopInstanceResponse {
   bool success = 1;
   Instance instance = 2;
 }
-
-message Empty {}

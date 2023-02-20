@@ -16,6 +16,10 @@
 
 #[macro_use]
 extern crate yaufs_codegen;
+#[macro_use]
+extern crate serde;
+
+pub mod fluvio;
 
 pub mod template_service_v1 {
     tonic::include_proto!("template_service_v1");

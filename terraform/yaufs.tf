@@ -57,23 +57,3 @@ resource "helm_release" "yaufs_template_service" {
     })
   ]
 }
-
-resource "kubectl_manifest" "yaufs_template_service_fluvio" {
-  depends_on = [kubectl_manifest.fluvio_group]
-  yaml_body = yamlencode({
-    "apiVersion" = "fluvio.infinyon.com/v2"
-    "kind" = "Topic"
-    "metadata" = {
-      name = "templating"
-      namespace = kubernetes_namespace.fluvio.metadata[0].name
-    }
-    "spec" = {
-      "replicas" = {
-        "computed" = {
-          "partitions" = 1
-          "replicationFactor" = 1
-        }
-      }
-    }
-  })
-}

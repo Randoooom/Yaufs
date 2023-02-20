@@ -16,18 +16,80 @@
 
 use crate::prelude::*;
 use control_plane_v1_server::{ControlPlaneV1, ControlPlaneV1Server};
+use futures::StreamExt;
+use kube::Client;
+use yaufs_common::error::YaufsError;
+use yaufs_common::fluvio::dataplane::record::ConsumerRecord;
+use yaufs_common::fluvio::Offset;
+use yaufs_common::skytable::ddl::{AsyncDdl, Keymap, KeymapType};
 use yaufs_common::skytable::pool::AsyncPool;
+use yaufs_common::yaufs_proto::fluvio::{TemplateCreated, TemplateDeleted, YaufsEvent};
 
 mod handler;
 
 pub struct ControlPlaneV1Context {
     skytable: AsyncPool,
+    client: Client,
 }
 
 pub type Server = ControlPlaneV1Server<ControlPlaneV1Context>;
 
-pub fn new(skytable: AsyncPool) -> Server {
-    ControlPlaneV1Server::new(ControlPlaneV1Context { skytable })
+pub async fn new(skytable: AsyncPool, client: Client) -> yaufs_common::error::Result<Server> {
+    #[cfg(not(test))]
+    {
+        // start the event consumer
+        let consumer = yaufs_common::fluvio_util::consumer().await?;
+        // access the fluvio stream
+        let mut stream = consumer.stream(Offset::end()).await?;
+        let pool = skytable.clone();
+
+        // handle the stream in a new tokio process
+        tokio::spawn(async move {
+            while let Some(Ok(record)) = stream.next().await {
+                let record: ConsumerRecord = record;
+                let key = record.key().ok_or(YaufsError::InternalServerError(
+                    "Invalid fluvio message received: missing key".to_owned(),
+                ))?;
+                // build the event
+                let event = String::from_utf8_lossy(key);
+
+                match event.as_ref() {
+                    YaufsEvent::TEMPLATE_CREATED => {
+                        info!("Received TEMPLATE_CREATED");
+                        // parse the data
+                        let data = serde_json::from_slice::<TemplateCreated>(record.value())?;
+
+                        // create a new ddl table in the kv server for it
+                        let keymap = Keymap::new(format!("instances:{}", data.template_id))
+                            .set_ktype(KeymapType::Str)
+                            .set_vtype(KeymapType::Binstr);
+                        pool.get().await?.create_table(keymap).await?;
+                    }
+                    YaufsEvent::TEMPLATE_DELETED => {
+                        info!("Received TEMPLATE_DELETED");
+                        // parse the data
+                        let data = serde_json::from_slice::<TemplateDeleted>(record.value())?;
+
+                        // delete the ddl table
+                        let mut connection = pool.get().await?;
+                        connection.switch("default").await?;
+                        connection
+                            .drop_table(format!("instances:{}", data.template_id))
+                            .await?;
+                    }
+                    // we do not listen for any other events here
+                    _ => {}
+                }
+            }
+
+            Ok::<(), YaufsError>(())
+        })
+    };
+
+    Ok(ControlPlaneV1Server::new(ControlPlaneV1Context {
+        skytable,
+        client,
+    }))
 }
 
 #[async_trait]
@@ -37,7 +99,8 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         &self,
         request: Request<StartInstanceRequest>,
     ) -> Result<Response<StartInstanceResponse>, Status> {
-        let result = handler::start_instance(self.skytable.clone(), request).await?;
+        let result =
+            handler::start_instance(self.skytable.clone(), self.client.clone(), request).await?;
         Ok(result)
     }
 
@@ -47,15 +110,6 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         request: Request<ListInstancesRequest>,
     ) -> Result<Response<ListInstancesResponse>, Status> {
         let result = handler::list_instances(self.skytable.clone(), request).await?;
-        Ok(result)
-    }
-
-    #[instrument(skip_all)]
-    async fn list_active_instances(
-        &self,
-        request: Request<Empty>,
-    ) -> Result<Response<ListInstancesResponse>, Status> {
-        let result = handler::list_active_instances(self.skytable.clone(), request).await?;
         Ok(result)
     }
 
@@ -73,7 +127,8 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         &self,
         request: Request<InstanceId>,
     ) -> Result<Response<StopInstanceResponse>, Status> {
-        let result = handler::stop_instance(self.skytable.clone(), request).await?;
+        let result =
+            handler::stop_instance(self.skytable.clone(), self.client.clone(), request).await?;
         Ok(result)
     }
 }

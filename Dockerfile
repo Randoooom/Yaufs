@@ -1,28 +1,24 @@
-FROM busybox:latest as template-service-preperation
-
-COPY ./yaufs-template-service/Cargo.toml ./Cargo.toml
-RUN sed -i '3s/.*/version = "0.1.0"/' Cargo.toml
-
 FROM rust:slim-buster as template-service-build
 
 RUN apt-get update
-RUN apt-get install build-essential libssl-dev pkg-config clang lld protobuf-compiler -y
+RUN apt-get install build-essential libssl-dev pkg-config clang lld protobuf-compiler git -y
 RUN rustup default nightly
 
-# compile dependencies
-RUN cargo new --bin yaufs-template-service
+# we need to do this due the requirement of the current git hash for fluvio-socket
+RUN git init
+RUN echo "dump" | tee temp
+RUN git add temp
+RUN git config --global user.email "dump"
+RUN git config --global user.name "dump"
+RUN git commit -m 'init'
+
+COPY ./yaufs-template-service ./yaufs-template-service
+COPY ./yaufs-common ./yaufs-common
+COPY ./yaufs-proto ./yaufs-proto
+COPY ./yaufs-codegen ./yaufs-codegen
+COPY ./proto ./proto
+
 WORKDIR ./yaufs-template-service
-COPY --from=template-service-preperation Cargo.toml ./Cargo.toml
-COPY ./yaufs-common ../yaufs-common
-COPY ./proto ../proto
-RUN cargo build --release
-
-# build the binary
-RUN rm -rf ./src/*
-RUN rm -rf ./target/release/deps/yaufs_template_service*
-COPY ./yaufs-template-service/Cargo.toml ./Cargo.toml
-COPY ./yaufs-template-service/src ./src
-
 RUN cargo build --release
 
 FROM gcr.io/distroless/cc-debian11 as template-service

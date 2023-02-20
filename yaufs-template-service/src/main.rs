@@ -80,6 +80,7 @@ async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std
                 .into_inner();
         }
     }
+    let service = v1::new(surreal).await?;
 
     let join = tokio::spawn(async move {
         // expose the health check and in future version the metrics
@@ -94,7 +95,7 @@ async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std
 
         Server::builder()
             .layer(tower_layer)
-            .add_service(v1::new(surreal))
+            .add_service(service)
             .serve_with_incoming(incoming)
             .await
             .unwrap()

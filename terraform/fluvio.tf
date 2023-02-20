@@ -112,3 +112,24 @@ resource "kubectl_manifest" "fluvio_group" {
     }
   })
 }
+
+resource "kubectl_manifest" "fluvio_event_topic" {
+  depends_on = [kubectl_manifest.fluvio_group]
+  yaml_body = yamlencode({
+    "apiVersion" = "fluvio.infinyon.com/v2"
+    "kind" = "Topic"
+    "metadata" = {
+      name = "events"
+      namespace = kubernetes_namespace.fluvio.metadata[0].name
+    }
+    "spec" = {
+      "replicas" = {
+        "computed" = {
+          "partitions" = 1
+          "replicationFactor" = 1
+        }
+      }
+    }
+  })
+}
+

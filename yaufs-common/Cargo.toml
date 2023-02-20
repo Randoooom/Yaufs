@@ -16,7 +16,9 @@ serde = { version = "1.0.152", features = ["derive"] }
 nanoid = { version = "0.4.0", optional = true }
 zitadel = { version = "3.0.5", features = ["credentials", "oidc"] }
 generic-array = { version = "0.14.6", optional = true }
+fluvio = { version = "0.16.0", features = ["rustls"], default-features = false, optional = true }
 
+serde_json = "1.0.93"
 hyper = "0.14.23"
 tower = "0.4.13"
 thiserror = "1.0.38"
@@ -32,8 +34,9 @@ cached = "0.42.0"
 openidconnect = "2.5.0"
 
 [features]
-default = ["surrealdb", "skytable"]
+default = ["surrealdb", "skytable", "fluvio"]
 
 testing = ["dep:nanoid"]
 surrealdb = ["dep:surrealdb"]
 skytable = ["dep:skytable", "dep:generic-array"]
+fluvio = ["dep:fluvio"]

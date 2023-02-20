@@ -33,6 +33,11 @@ pub enum YaufsError {
     #[cfg(feature = "skytable")]
     #[error(transparent)]
     SkytablePoolError(#[from] skytable::pool::bb8Error<skytable::error::Error>),
+    #[cfg(feature = "fluvio")]
+    #[error(transparent)]
+    FluvioError(#[from] fluvio::FluvioError),
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
     #[error("{0}")]
     InternalServerError(String),
     #[error(transparent)]

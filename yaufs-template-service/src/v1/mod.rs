@@ -15,6 +15,7 @@
  */
 
 use crate::prelude::*;
+use fluvio::TopicProducer;
 use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use template_service_v1_server::{TemplateServiceV1, TemplateServiceV1Server};
@@ -23,12 +24,21 @@ mod handler;
 
 pub struct TemplateServiceV1Context {
     surreal: Surreal<Client>,
+    producer: Option<TopicProducer>,
 }
 
 pub type Server = TemplateServiceV1Server<TemplateServiceV1Context>;
 
-pub fn new(surreal: Surreal<Client>) -> Server {
-    TemplateServiceV1Server::new(TemplateServiceV1Context { surreal })
+pub async fn new(surreal: Surreal<Client>) -> yaufs_common::error::Result<Server> {
+    #[cfg(not(test))]
+    let producer = Some(yaufs_common::fluvio_util::producer().await?);
+    #[cfg(test)]
+    let producer = None;
+
+    Ok(TemplateServiceV1Server::new(TemplateServiceV1Context {
+        surreal,
+        producer,
+    }))
 }
 
 #[async_trait]
@@ -56,7 +66,8 @@ impl TemplateServiceV1 for TemplateServiceV1Context {
         &self,
         request: Request<TemplateId>,
     ) -> Result<Response<Empty>, Status> {
-        let result = handler::delete_template(&self.surreal, request).await?;
+        let result =
+            handler::delete_template(&self.surreal, &self.producer.as_ref(), request).await?;
         Ok(result)
     }
 
@@ -65,7 +76,8 @@ impl TemplateServiceV1 for TemplateServiceV1Context {
         &self,
         request: Request<CreateTemplateRequest>,
     ) -> Result<Response<Template>, Status> {
-        let result = handler::create_template(&self.surreal, request).await?;
+        let result =
+            handler::create_template(&self.surreal, &self.producer.as_ref(), request).await?;
         Ok(result)
     }
 }
@@ -75,8 +87,8 @@ mod tests {
     use crate::init;
     use surrealdb::sql;
     use tonic::Response;
-    use yaufs_common::proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
-    use yaufs_common::proto::template_service_v1::{
+    use yaufs_common::yaufs_proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
+    use yaufs_common::yaufs_proto::template_service_v1::{
         CreateTemplateRequest, ListTemplatesRequest, ListTemplatesResponse,
     };
 
