@@ -18,9 +18,10 @@ use async_once::AsyncOnce;
 use fluvio::TopicProducer;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
-use kube::api::{ListParams, PostParams, WatchEvent};
+use kube::api::{DeleteParams, ListParams, PostParams, WatchEvent};
 use kube::runtime::controller::Action;
-use kube::runtime::Controller;
+use kube::runtime::watcher::Event;
+use kube::runtime::{watcher, Controller};
 use kube::{Api, Client};
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
@@ -60,6 +61,8 @@ pub enum ControlPlaneError {
     Fluvio(#[from] fluvio::FluvioError),
     #[error(transparent)]
     Yaufs(#[from] YaufsError),
+    #[error(transparent)]
+    Watch(#[from] kube::runtime::watcher::Error),
 }
 
 impl From<Status> for ControlPlaneError {
@@ -145,7 +148,7 @@ async fn reconcile(
 
     // wait until the pod has started
     let list_params = ListParams::default()
-        .fields(format!("metadata.name={id},metadata.namespace={INSTANCE}").as_str())
+        .fields(format!("metadata.name={id}").as_str())
         .timeout(10);
     let mut stream = deployments.watch(&list_params, "0").await?.boxed();
     while let Some(status) = stream.try_next().await? {
@@ -197,6 +200,20 @@ pub async fn init(client: Client) -> Result<(), Box<dyn std::error::Error>> {
     let instances = Api::<Instance>::all(client.clone());
     debug!("Fetched kind 'Instance'");
 
+    // watch for the crd to be deleted
+    let mut watcher_stream = watcher(instances.clone(), ListParams::default()).boxed();
+    let watcher_client = client.clone();
+    // spawn new process
+    tokio::spawn(async move {
+        while let Some(event) = watcher_stream.try_next().await? {
+            if let Event::Deleted(instance) = event {
+                handle_instance_crd_deleted(instance, watcher_client.clone()).await?;
+            }
+        }
+
+        Ok::<(), ControlPlaneError>(())
+    });
+
     let context = ControllerContext {
         kube_client: client,
         // establish connection to the event streaming spu gorup
@@ -214,6 +231,23 @@ pub async fn init(client: Client) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .await;
+
+    Ok(())
+}
+
+async fn handle_instance_crd_deleted(
+    instance: Instance,
+    client: Client,
+) -> Result<(), ControlPlaneError> {
+    let name = instance.metadata.name.as_ref().expect("name on metadata");
+
+    // fetch the deployments
+    let deployments = Api::<Deployment>::namespaced(client.clone(), INSTANCE);
+    // delete the given instance
+    deployments
+        .delete(name.as_str(), &DeleteParams::default())
+        .await?;
+    debug!("Terminating deployment {}", name);
 
     Ok(())
 }
