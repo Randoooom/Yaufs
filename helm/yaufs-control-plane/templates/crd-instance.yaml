@@ -20,15 +20,10 @@ spec:
             spec:
               type: object
               properties:
-                image:
-                  type: string
-                imagePullSecret:
+                template:
                   type: string
                 replicas:
                   type: integer
-                id:
-                  type: string
               required:
-                - image
+                - tempalte
                 - replicas
-                - id

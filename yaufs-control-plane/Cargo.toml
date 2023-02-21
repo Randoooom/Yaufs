@@ -26,6 +26,8 @@ tonic = "0.8.3"
 async-trait = "0.1.60"
 tracing = "0.1.37"
 thiserror = "1.0.38"
+lazy_static = "1.4.0"
+async_once = "0.2.6"
 
 [dev-dependencies]
 yaufs-common = { path = "../yaufs-common", features = ["testing"] }

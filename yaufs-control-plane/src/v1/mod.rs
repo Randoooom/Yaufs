@@ -16,11 +16,11 @@
 
 use crate::prelude::*;
 use control_plane_v1_server::{ControlPlaneV1, ControlPlaneV1Server};
-use futures::StreamExt;
+use fluvio::dataplane::record::ConsumerRecord;
+use fluvio::Offset;
+use futures::stream::StreamExt;
 use kube::Client;
 use yaufs_common::error::YaufsError;
-use yaufs_common::fluvio::dataplane::record::ConsumerRecord;
-use yaufs_common::fluvio::Offset;
 use yaufs_common::skytable::ddl::{AsyncDdl, Keymap, KeymapType};
 use yaufs_common::skytable::pool::AsyncPool;
 use yaufs_common::yaufs_proto::fluvio::{TemplateCreated, TemplateDeleted, YaufsEvent};
@@ -28,13 +28,13 @@ use yaufs_common::yaufs_proto::fluvio::{TemplateCreated, TemplateDeleted, YaufsE
 mod handler;
 
 pub struct ControlPlaneV1Context {
-    skytable: AsyncPool,
-    client: Client,
+    pub skytable: AsyncPool,
+    pub kube_client: Client,
 }
 
 pub type Server = ControlPlaneV1Server<ControlPlaneV1Context>;
 
-pub async fn new(skytable: AsyncPool, client: Client) -> yaufs_common::error::Result<Server> {
+pub async fn new(skytable: AsyncPool, kube_client: Client) -> yaufs_common::error::Result<Server> {
     #[cfg(not(test))]
     {
         // start the event consumer
@@ -88,7 +88,7 @@ pub async fn new(skytable: AsyncPool, client: Client) -> yaufs_common::error::Re
 
     Ok(ControlPlaneV1Server::new(ControlPlaneV1Context {
         skytable,
-        client,
+        kube_client,
     }))
 }
 
@@ -99,9 +99,9 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         &self,
         request: Request<StartInstanceRequest>,
     ) -> Result<Response<StartInstanceResponse>, Status> {
-        let result =
-            handler::start_instance(self.skytable.clone(), self.client.clone(), request).await?;
-        Ok(result)
+        let response = handler::start_instance(self, request).await?;
+
+        Ok(response)
     }
 
     #[instrument(skip_all)]
@@ -109,8 +109,9 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         &self,
         request: Request<ListInstancesRequest>,
     ) -> Result<Response<ListInstancesResponse>, Status> {
-        let result = handler::list_instances(self.skytable.clone(), request).await?;
-        Ok(result)
+        let response = handler::list_instances(self, request).await?;
+
+        Ok(response)
     }
 
     #[instrument(skip_all)]
@@ -118,17 +119,15 @@ impl ControlPlaneV1 for ControlPlaneV1Context {
         &self,
         request: Request<InstanceId>,
     ) -> Result<Response<Instance>, Status> {
-        let result = handler::get_instance(self.skytable.clone(), request).await?;
-        Ok(result)
+        let response = handler::get_instance(self, request).await?;
+
+        Ok(response)
     }
 
     #[instrument(skip_all)]
-    async fn stop_instance(
-        &self,
-        request: Request<InstanceId>,
-    ) -> Result<Response<StopInstanceResponse>, Status> {
-        let result =
-            handler::stop_instance(self.skytable.clone(), self.client.clone(), request).await?;
-        Ok(result)
+    async fn stop_instance(&self, request: Request<InstanceId>) -> Result<Response<Empty>, Status> {
+        let response = handler::stop_instance(self, request).await?;
+
+        Ok(response)
     }
 }

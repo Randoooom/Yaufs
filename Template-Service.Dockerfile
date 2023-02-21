@@ -1,4 +1,4 @@
-FROM rust:slim-buster as template-service-build
+FROM rust:slim-buster as build
 
 RUN apt-get update
 RUN apt-get install build-essential libssl-dev pkg-config clang lld protobuf-compiler git -y
@@ -21,8 +21,8 @@ COPY ./proto ./proto
 WORKDIR ./yaufs-template-service
 RUN cargo build --release
 
-FROM gcr.io/distroless/cc-debian11 as template-service
+FROM gcr.io/distroless/cc-debian11
 
-COPY --from=template-service-build ./yaufs-template-service/target/release/yaufs-template-service .
+COPY --from=build ./yaufs-template-service/target/release/yaufs-template-service .
 
 ENTRYPOINT ["./yaufs-template-service"]

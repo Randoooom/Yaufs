@@ -15,32 +15,38 @@
  */
 
 use crate::prelude::*;
+use crate::v1::ControlPlaneV1Context;
 use chrono::Utc;
 use futures::{StreamExt, TryStreamExt};
-use kube::Client;
-use yaufs_common::error::Result;
+use kube::api::DeleteParams;
+use kube::Api;
+use tonic::{Request, Response};
+use yaufs_common::error::{Result, YaufsError};
 use yaufs_common::skytable::actions::AsyncActions;
 use yaufs_common::skytable::ddl::AsyncDdl;
-use yaufs_common::skytable::pool::AsyncPool;
 use yaufs_common::skytable::types::FromSkyhashBytes;
 use yaufs_common::skytable::{query, Pipeline};
+use yaufs_common::{kv_span, map_internal_error};
 
 pub async fn start_instance(
-    skytable: AsyncPool,
-    client: Client,
+    context: &ControlPlaneV1Context,
     request: Request<StartInstanceRequest>,
 ) -> Result<Response<StartInstanceResponse>> {
-    let mut connection = skytable.get().await?;
+    // convert the request into the inner data
     let data = request.into_inner();
+    let mut connection = map_internal_error!(
+        context.skytable.get().await,
+        "failed to access skytable pool"
+    )?;
     let count = data.count;
 
     // create the instances
     let mut instances: Vec<Instance> = Vec::new();
-    let mut keys: Vec<&str> = Vec::new();
+    let mut keys: Vec<String> = Vec::new();
     for _ in 0..count {
         let id = nanoid::nanoid!();
 
-        keys.push(id.as_str());
+        keys.push(id.clone());
         instances.push(Instance {
             id,
             template_id: data.template_id.clone(),
@@ -55,42 +61,38 @@ pub async fn start_instance(
         "switch"
     )?;
     kv_span!(
-        connection.mset(keys, instances.clone()).await,
+        connection
+            .mset(keys, instances.iter().collect::<Vec<&Instance>>())
+            .await,
         "write instances"
     )?;
 
-    futures::stream::iter(instances)
-        .then(|instance| {
-            // fetch the required template
-            // TODO
-
-            let instance = serde_json::json!({
-                "apiVersion": "yaufs.io/v1alpha1"
-                "kind": "Instance",
-                "metadata": {
-                    "name": &instance.id,
-                    "namespace": "instance"
-                },
-                "spec": {
-                    "image"
-                }
-            });
-
-            Ok(())
+    // start all the instances
+    futures::stream::iter(instances.iter())
+        .then(|instance| async {
+            // apply a custom crd for the controller to manage
+            crate::controller::create_instance_crd(instance, context.kube_client.clone()).await
         })
+        .try_collect::<Vec<()>>()
         .await?;
 
-    todo!()
+    Ok(Response::new(StartInstanceResponse { instances }))
 }
 
 pub async fn list_instances(
-    skytable: AsyncPool,
+    context: &ControlPlaneV1Context,
     request: Request<ListInstancesRequest>,
 ) -> Result<Response<ListInstancesResponse>> {
-    let mut connection = skytable.get().await?;
+    let data = request.into_inner();
+    let mut connection = map_internal_error!(
+        context.skytable.get().await,
+        "failed to access skytable pool"
+    )?;
+
+    // change the table
     kv_span!(
         connection
-            .switch(format!("instances:{}", request.into_inner().template_id))
+            .switch(format!("instances:{}", data.template_id))
             .await,
         "switch"
     )?;
@@ -112,11 +114,14 @@ pub async fn list_instances(
 }
 
 pub async fn get_instance(
-    skytable: AsyncPool,
+    context: &ControlPlaneV1Context,
     request: Request<InstanceId>,
 ) -> Result<Response<Instance>> {
     let data = request.into_inner();
-    let mut connection = skytable.get().await?;
+    let mut connection = map_internal_error!(
+        context.skytable.get().await,
+        "failed to access skytable pool"
+    )?;
 
     kv_span!(
         connection
@@ -130,9 +135,33 @@ pub async fn get_instance(
 }
 
 pub async fn stop_instance(
-    skytable: AsyncPool,
-    client: Client,
+    context: &ControlPlaneV1Context,
     request: Request<InstanceId>,
-) -> Result<Response<StopInstanceResponse>> {
-    todo!()
+) -> Result<Response<Empty>> {
+    let data = request.into_inner();
+    let mut connection = map_internal_error!(
+        context.skytable.get().await,
+        "failed to access skytable pool"
+    )?;
+
+    // delete the crd
+    map_internal_error!(
+        Api::<crate::controller::Instance>::all(context.kube_client.clone())
+            .delete(data.id.as_str(), &DeleteParams::default())
+            .await,
+        "Error while deleting crd"
+    )?;
+    debug!("Deleted instance crd {}", data.id.as_str());
+
+    // remove the instance from the kv
+    kv_span!(
+        connection
+            .switch(format!("instances:{}", data.template_id))
+            .await,
+        "switch"
+    )?;
+    kv_span!(connection.del(data.id.as_str()).await, "delete")?;
+    info!("Deleted instance {}", data.id.as_str());
+
+    Ok(Response::new(Empty {}))
 }

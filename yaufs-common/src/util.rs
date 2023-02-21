@@ -18,10 +18,7 @@
 macro_rules! map_internal_error {
     ($expr:expr, $reason:expr) => {
         $expr.map_err(|error| {
-            crate::error::YaufsError::InternalServerError(format!(
-                concat!($reason, ": {:?}"),
-                error
-            ))
+            YaufsError::InternalServerError(format!(concat!($reason, ": {:?}"), error))
         })
     };
 }

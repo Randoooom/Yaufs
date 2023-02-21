@@ -14,6 +14,7 @@
  *    limitations under the License.
  */
 
+use async_once::AsyncOnce;
 use fluvio::TopicProducer;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::apps::v1::Deployment;
@@ -21,33 +22,58 @@ use kube::api::{ListParams, PostParams, WatchEvent};
 use kube::runtime::controller::Action;
 use kube::runtime::Controller;
 use kube::{Api, Client};
+use lazy_static::lazy_static;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
+use tokio::sync::Mutex;
+use tonic::codegen::http::header::AUTHORIZATION;
+use tonic::{Request, Response, Status};
+use yaufs_common::error::YaufsError;
+use yaufs_common::oidc::OIDCClient;
 use yaufs_common::yaufs_proto::fluvio::{InstanceDeployed, YaufsEvent};
+use yaufs_common::yaufs_proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
+use yaufs_common::yaufs_proto::template_service_v1::{Template, TemplateId};
 
 const INSTANCE: &str = "instance";
+const TEMPLATE_SERVICE_ENDPOINT: &str = "TEMPLATE_SERVICE_ENDPOINT";
+
+lazy_static! {
+    pub static ref OPENID_CLIENT: AsyncOnce<Arc<Mutex<OIDCClient>>> = AsyncOnce::new(async move {
+        Arc::new(Mutex::new(
+            OIDCClient::new_from_env(vec!["templating".to_owned()])
+                .await
+                .unwrap(),
+        ))
+    });
+}
 
 #[derive(Error, Debug)]
 pub enum ControlPlaneError {
     #[error(transparent)]
-    KubeError(#[from] kube::Error),
+    Kube(#[from] kube::Error),
     #[error(transparent)]
-    SerdeError(#[from] serde_json::Error),
+    Serde(#[from] serde_json::Error),
     #[error(transparent)]
-    FluvioError(#[from] fluvio::FluvioError),
+    Fluvio(#[from] fluvio::FluvioError),
+    #[error(transparent)]
+    Yaufs(#[from] YaufsError),
+}
+
+impl From<Status> for ControlPlaneError {
+    fn from(status: Status) -> Self {
+        Self::Yaufs(YaufsError::from(status))
+    }
 }
 
 #[derive(Serialize, Deserialize, CustomResource, Debug, Clone, JsonSchema)]
 #[kube(group = "yaufs.io", version = "v1alpha1", kind = "Instance")]
 #[kube(namespaced)]
 pub struct InstanceSpec {
-    image: String,
-    image_pull_secret: Option<String>,
+    template: String,
     replicas: u8,
-    id: String,
 }
 
 pub struct ControllerContext {
@@ -62,7 +88,29 @@ async fn reconcile(
     let client = &context.kube_client;
     let producer = &context.producer;
 
-    let id = instance.spec.id.as_str();
+    let mut template_client = TemplateServiceV1Client::connect(
+        std::env::var(TEMPLATE_SERVICE_ENDPOINT)
+            .unwrap_or_else(|_| panic!("missing env var {TEMPLATE_SERVICE_ENDPOINT}")),
+    )
+    .await
+    .map_err(|error| YaufsError::InternalServerError(error.to_string()))?;
+    // fetch the template from the service
+    let mut request = Request::new(TemplateId {
+        id: instance.spec.template.clone(),
+    });
+    let oidc_client = OPENID_CLIENT.get().await.lock().await;
+    let access_token = oidc_client.obtain_access_token().await?;
+    request
+        .metadata_mut()
+        .insert(AUTHORIZATION.as_str(), access_token.parse().unwrap());
+    let response: Response<Template> = template_client.get_template(request).await?;
+    let template = response.into_inner();
+
+    let id = instance
+        .metadata
+        .name
+        .as_ref()
+        .expect("metadata contains name");
     debug!("Preparing deployment for instance {}", id);
     // check if the deployment already exists
     let deployment: Deployment = serde_json::from_value(serde_json::json!({
@@ -82,8 +130,7 @@ async fn reconcile(
                     "containers": [
                         {
                             "name": "instance",
-                            "image": instance.spec.image.as_str(),
-                            "imagePullSecrets": [ instance.spec.image_pull_secret.clone() ],
+                            "image": template.image.as_str(),
                         }
                     ]
                 }
@@ -98,7 +145,7 @@ async fn reconcile(
 
     // wait until the pod has started
     let list_params = ListParams::default()
-        .fields(format!("metadata.name={},metadata.namespace={}", id, INSTANCE).as_str())
+        .fields(format!("metadata.name={id},metadata.namespace={INSTANCE}").as_str())
         .timeout(10);
     let mut stream = deployments.watch(&list_params, "0").await?.boxed();
     while let Some(status) = stream.try_next().await? {
@@ -112,7 +159,7 @@ async fn reconcile(
                     .conditions
                     .as_ref()
                     .expect("conditions on deploymentStatus")
-                    .into_iter()
+                    .iter()
                     .all(|condition| condition.status.eq("Running"))
                 {
                     info!("Attached instance {}", id);
@@ -167,6 +214,32 @@ pub async fn init(client: Client) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .await;
+
+    Ok(())
+}
+
+#[instrument(skip(client))]
+pub async fn create_instance_crd(
+    instance: &crate::prelude::Instance,
+    client: Client,
+) -> yaufs_common::error::Result<()> {
+    // build the custom crd
+    let crd = serde_json::from_value::<Instance>(serde_json::json!({
+        "apiVersion": "yaufs.io/v1alpha1",
+        "kind": "Instance",
+        "metadata": {
+            "name": instance.id.as_str(),
+        },
+        "spec": {
+            "template": instance.template_id.as_str(),
+            "replicas": 1,
+        }
+    }))?;
+    // post the crd to the cluster
+    Api::<Instance>::all(client)
+        .create(&PostParams::default(), &crd)
+        .await
+        .map_err(|error| YaufsError::InternalServerError(error.to_string()))?;
 
     Ok(())
 }

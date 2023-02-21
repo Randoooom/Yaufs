@@ -14,7 +14,7 @@ opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 serde = { version = "1.0.152", features = ["derive"] }
 nanoid = { version = "0.4.0", optional = true }
-zitadel = { version = "3.0.5", features = ["credentials", "oidc"] }
+zitadel = { git = "https://github.com/Randoooom/zitadel-rust.git", features = ["credentials", "oidc"] }
 generic-array = { version = "0.14.6", optional = true }
 fluvio = { version = "0.16.0", features = ["rustls"], default-features = false, optional = true }
 

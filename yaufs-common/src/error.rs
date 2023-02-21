@@ -16,7 +16,7 @@
 
 use openidconnect::core::CoreErrorResponseType;
 use openidconnect::{RequestTokenError, StandardErrorResponse, UserInfoError};
-use tonic::Status;
+use tonic::{Code, Status};
 
 #[derive(thiserror::Error, Debug)]
 pub enum YaufsError {
@@ -54,6 +54,18 @@ impl From<YaufsError> for Status {
             YaufsError::NotFound(message) => Status::not_found(message),
             YaufsError::Unauthorized => Status::unauthenticated(value.to_string()),
             _ => Status::internal("Error occurred while processing the request"),
+        }
+    }
+}
+
+impl From<Status> for YaufsError {
+    fn from(status: Status) -> Self {
+        tracing::error!("GRPC endpoint returned error: {status}");
+
+        match status.code() {
+            Code::Unauthenticated => Self::Unauthorized,
+            Code::NotFound => Self::NotFound("Not found"),
+            _ => Self::InternalServerError(status.message().to_string()),
         }
     }
 }
