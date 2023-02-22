@@ -15,17 +15,43 @@
  */
 
 use crate::error::Result;
+use cached::lazy_static::lazy_static;
+use fluvio::config::{TlsConfig, TlsPaths, TlsPolicy};
 use fluvio::{Fluvio, FluvioConfig, PartitionConsumer, TopicProducer};
+use std::path::PathBuf;
 
 const FLUVIO_ENDPOINT: &str = "FLUVIO_ENDPOINT";
+const FLUVIO_TLS_DOMAIN: &str = "FLUVIO_TLS_DOMAIN";
+const FLUVIO_TLS_KEY_PATH: &str = "FLUVIO_TLS_KEY_PATH";
+const FLUVIO_TLS_CRT_PATH: &str = "FLUVIO_TLS_CRT_PATH";
+const FLUVIO_TLS_CA_PATH: &str = "FLUVIO_TLS_CA_PATH";
+
+lazy_static! {
+    pub static ref FLUVIO_CONFIG: FluvioConfig = FluvioConfig::new(
+        std::env::var(FLUVIO_ENDPOINT)
+            .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_ENDPOINT}")),
+    )
+    .with_tls(TlsPolicy::Verified(TlsConfig::Files(TlsPaths {
+        domain: std::env::var(FLUVIO_TLS_DOMAIN)
+            .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_TLS_DOMAIN}")),
+        key: PathBuf::from(
+            std::env::var(FLUVIO_TLS_KEY_PATH)
+                .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_TLS_KEY_PATH}")),
+        ),
+        cert: PathBuf::from(
+            std::env::var(FLUVIO_TLS_CRT_PATH)
+                .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_TLS_CRT_PATH}")),
+        ),
+        ca_cert: PathBuf::from(
+            std::env::var(FLUVIO_TLS_CA_PATH)
+                .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_TLS_CA_PATH}")),
+        ),
+    })));
+}
 
 pub async fn producer() -> Result<TopicProducer> {
     // connect to the fluvio spu group
-    let config = FluvioConfig::new(
-        std::env::var(FLUVIO_ENDPOINT)
-            .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_ENDPOINT}")),
-    );
-    let fluvio = Fluvio::connect_with_config(&config).await?;
+    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG).await?;
     // start the producer
     let producer = fluvio.topic_producer("events").await?;
 
@@ -34,11 +60,7 @@ pub async fn producer() -> Result<TopicProducer> {
 
 pub async fn consumer() -> Result<PartitionConsumer> {
     // connect to the fluvio spu group
-    let config = FluvioConfig::new(
-        std::env::var(FLUVIO_ENDPOINT)
-            .unwrap_or_else(|_| panic!("Missing env var {FLUVIO_ENDPOINT}")),
-    );
-    let fluvio = Fluvio::connect_with_config(&config).await?;
+    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG).await?;
     // start the consumer
     let consumer = fluvio.partition_consumer("events", 0).await?;
 
