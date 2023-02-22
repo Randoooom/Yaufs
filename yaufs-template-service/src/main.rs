@@ -76,7 +76,7 @@ async fn init() -> Result<(String, Surreal<Client>, JoinHandle<()>), Box<dyn std
         } else {
             let tower_layer = tower::ServiceBuilder::new()
                 .layer(yaufs_common::tonic::trace_layer())
-                .layer(AuthenticationLayer::from(OIDCClient::new_from_env(Vec::new()).await?))
+                .layer(AuthenticationLayer::from(OIDCClient::new_from_env(vec!["templating".to_owned()]).await?))
                 .into_inner();
         }
     }

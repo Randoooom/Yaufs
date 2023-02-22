@@ -27,21 +27,14 @@ const ISSUER: &str = "OIDC_ISSUER";
 const SERVICE_ACCOUNT: &str = "OIDC_SERVICE_ACCOUNT_KEY_PATH";
 const APPLICATION: &str = "OIDC_APPLICATION_KEY_PATH";
 
-cfg_if::cfg_if! {
-    if #[cfg(not(feature  = "testing"))] {
-        #[derive(Clone, Debug)]
-        pub struct OIDCClient {
-            authority_authentication: AuthorityAuthentication,
-            service_account: ServiceAccount,
-            metadata: ZitadelProviderMetadata,
-            authentication_options: AuthenticationOptions,
-            roles: Vec<Scope>,
-            issuer: String,
-        }
-    } else {
-        #[derive(Clone, Debug)]
-        pub struct OIDCClient;
-    }
+#[derive(Clone, Debug)]
+pub struct OIDCClient {
+    authority_authentication: AuthorityAuthentication,
+    service_account: ServiceAccount,
+    metadata: ZitadelProviderMetadata,
+    authentication_options: AuthenticationOptions,
+    roles: Vec<Scope>,
+    issuer: String,
 }
 
 #[once(time = 1800)]
@@ -59,7 +52,6 @@ pub async fn obtain_access_token(
         .unwrap()
 }
 
-#[cfg(not(feature = "testing"))]
 impl OIDCClient {
     /// Create a new instance based on the set env variables. This will panic if they're set in an
     /// incompatible matter since the security of all applications rely on it.
@@ -166,12 +158,5 @@ impl OIDCClient {
         } else {
             Ok(())
         };
-    }
-}
-
-#[cfg(feature = "testing")]
-impl OidCClient {
-    pub async fn new_from_env(_roles: Vec<String>) -> Result<Self> {
-        Ok(Self {})
     }
 }

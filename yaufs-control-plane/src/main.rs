@@ -15,6 +15,7 @@
  *    limitations under the License.
  */
 
+#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate async_trait;
@@ -22,6 +23,8 @@ extern crate async_trait;
 extern crate tracing;
 #[macro_use]
 extern crate kube;
+#[macro_use]
+extern crate schemars;
 
 use kube::Client;
 use tokio::net::TcpListener;
@@ -49,10 +52,9 @@ cfg_if::cfg_if! {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (_, client, join) = init().await?;
-    // start the kubernetes controller
-    tokio::spawn(async move {
-        controller::init(client).await.unwrap();
-    });
+    // start the kubernetes operator
+    controller::init(client).await.unwrap();
+    // join the grpc server into the process lifetime
     join.await?;
 
     Ok(())
@@ -80,7 +82,7 @@ async fn init() -> Result<(String, Client, JoinHandle<()>), Box<dyn std::error::
         } else {
             let tower_layer = tower::ServiceBuilder::new()
                 .layer(yaufs_common::tonic::trace_layer())
-                .layer(AuthenticationLayer::from(OIDCClient::new_from_env(Vec::new()).await?))
+                .layer(AuthenticationLayer::from(OIDCClient::new_from_env(vec!["control-plane".to_owned()]).await?))
                 .into_inner();
         }
     }

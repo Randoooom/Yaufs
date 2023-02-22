@@ -1,13 +1,13 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: instances.yaufs.io
+  name: templates.yaufs.io
 spec:
   group: yaufs.io
   names:
-    kind: Instance
-    plural: instances
-    singular: instance
+    kind: Template
+    plural: templates
+    singular: template
   scope: Namespaced
   versions:
     - name: v1alpha1
@@ -20,10 +20,9 @@ spec:
             spec:
               type: object
               properties:
-                template:
+                image:
                   type: string
-                replicas:
-                  type: integer
+                id:
+                  type: string
               required:
-                - template
-                - replicas
+                - image

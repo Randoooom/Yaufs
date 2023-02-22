@@ -23,6 +23,7 @@ impl YaufsEvent {
     pub const TEMPLATE_DELETED: &'static str = "TEMPLATE_DELETED";
 
     pub const INSTANCE_DEPLOYED: &'static str = "INSTANCE_DEPLOYED";
+    pub const INSTANCE_STARTED: &'static str = "INSTANCE_STARTED";
     pub const INSTANCE_STOPPED: &'static str = "INSTANCE_STOPPED";
 }
 
@@ -67,6 +68,7 @@ macro_rules! event {
 
 event!(TemplateCreated, template_id);
 event!(TemplateDeleted, template_id);
+event!(InstanceStarted, id);
 
 event!(
     pub struct InstanceDeployed {

@@ -71,7 +71,8 @@ pub async fn start_instance(
     futures::stream::iter(instances.iter())
         .then(|instance| async {
             // apply a custom crd for the controller to manage
-            crate::controller::create_instance_crd(instance, context.kube_client.clone()).await
+            crate::controller::crd::instance::create_crd(instance, context.kube_client.clone())
+                .await
         })
         .try_collect::<Vec<()>>()
         .await?;
@@ -146,7 +147,7 @@ pub async fn stop_instance(
 
     // delete the crd
     map_internal_error!(
-        Api::<crate::controller::Instance>::all(context.kube_client.clone())
+        Api::<crate::controller::crd::instance::Instance>::all(context.kube_client.clone())
             .delete(data.id.as_str(), &DeleteParams::default())
             .await,
         "Error while deleting crd"
