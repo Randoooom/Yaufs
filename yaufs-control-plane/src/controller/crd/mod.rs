@@ -38,7 +38,7 @@ where
     T: Resource,
 {
     fn determine_action(&self) -> CRDAction {
-        return if self.meta().deletion_timestamp.is_some() {
+        if self.meta().deletion_timestamp.is_some() {
             CRDAction::Delete
         } else if self
             .meta()
@@ -49,7 +49,7 @@ where
             CRDAction::Create
         } else {
             CRDAction::Update
-        };
+        }
     }
 }
 
