@@ -23,7 +23,7 @@ const SKYTABLE_HOST: &str = "SKYTABLE_HOST";
 const SKYTABLE_PORT: &str = "SKYTABLE_PORT";
 const SKYTABLE_ORIGIN_KEY: &str = "SKYTABLE_ORIGIN_KEY";
 
-pub async fn connect() -> Result<AsyncPool, Box<dyn std::error::Error>> {
+pub async fn connect() -> AsyncPool {
     // read the configuration from the process environment
     let host = std::env::var(SKYTABLE_HOST)
         .unwrap_or_else(|_| panic!("Missing {SKYTABLE_HOST} env variable"));
@@ -38,20 +38,23 @@ pub async fn connect() -> Result<AsyncPool, Box<dyn std::error::Error>> {
 
     // start a new connection to the skytable kv server
     tracing::info!("Connecting to skytable on {host}:{port}");
-    let pool = skytable::pool::get_async(host, port, 10).await?;
+    let pool = skytable::pool::get_async(host, port, 10).await.unwrap();
     tracing::info!("Connected to skytable");
-    let mut connection = pool.get().await?;
+    let mut connection = pool.get().await.unwrap();
 
     // try to claim the root account
     let token = match connection.auth_claim(origin_key.into()).await {
         Ok(token) => token,
         Err(_) => {
             // the root was already claimed so we gonna reset it
-            connection.auth_restore(origin_key.into(), "root").await?
+            connection
+                .auth_restore(origin_key.into(), "root")
+                .await
+                .unwrap()
         }
     };
     // login into the root account
-    connection.auth_login("root", token.as_str()).await?;
+    connection.auth_login("root", token.as_str()).await.unwrap();
     drop(connection);
 
     Ok(pool)

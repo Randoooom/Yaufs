@@ -63,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn init() -> Result<(String, Client, JoinHandle<()>), Box<dyn std::error::Error>> {
     yaufs_common::init_telemetry!();
     // connect to the skytable kv server
-    let skytable = yaufs_common::database::skytable::connect().await?;
+    let skytable = yaufs_common::database::skytable::connect().await;
     // connect to kubernetes
     let client = Client::try_default().await?;
 
