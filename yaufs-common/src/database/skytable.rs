@@ -18,6 +18,8 @@ use generic_array::typenum::U40;
 use generic_array::GenericArray;
 use skytable::actions::AsyncActions;
 use skytable::pool::AsyncPool;
+use skytable::query;
+use skytable::types::RawString;
 
 const SKYTABLE_HOST: &str = "SKYTABLE_HOST";
 const SKYTABLE_PORT: &str = "SKYTABLE_PORT";
@@ -49,10 +51,17 @@ pub async fn connect() -> AsyncPool {
             tracing::warn!("Error occurred while claiming root: {}", error.to_string());
 
             // the root was already claimed so we gonna reset it
-            connection
-                .auth_restore(origin_key.into(), "root")
-                .await
-                .unwrap()
+            let query = query!(
+                "auth",
+                "restore",
+                RawString::from(origin_key.to_vec()),
+                "root"
+            );
+            connection.run_query::<String, _>(query).await.unwrap()
+            // connection
+            //     .auth_restore(origin_key.into(), "root")
+            //     .await
+            //     .unwrap()
         }
     };
     // login into the root account
