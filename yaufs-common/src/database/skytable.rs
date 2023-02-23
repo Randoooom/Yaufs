@@ -57,7 +57,7 @@ pub async fn connect() -> AsyncPool {
     connection.auth_login("root", token.as_str()).await.unwrap();
     drop(connection);
 
-    Ok(pool)
+    pool
 }
 
 #[macro_export]
