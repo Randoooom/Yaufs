@@ -37,7 +37,9 @@ pub async fn connect() -> Result<AsyncPool, Box<dyn std::error::Error>> {
     let origin_key: GenericArray<u8, U40> = GenericArray::clone_from_slice(origin_key.as_bytes());
 
     // start a new connection to the skytable kv server
+    tracing::info!("Connecting to skytable on {host}:{port}");
     let pool = skytable::pool::get_async(host, port, 10).await?;
+    tracing::info!("Connected to skytable");
     let mut connection = pool.get().await?;
 
     // try to claim the root account
