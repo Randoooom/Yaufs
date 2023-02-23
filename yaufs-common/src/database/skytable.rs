@@ -45,7 +45,9 @@ pub async fn connect() -> AsyncPool {
     // try to claim the root account
     let token = match connection.auth_claim(origin_key.into()).await {
         Ok(token) => token,
-        Err(_) => {
+        Err(error) => {
+            tracing::warn!("Error occurred while claiming root: {}", error.to_string());
+
             // the root was already claimed so we gonna reset it
             connection
                 .auth_restore(origin_key.into(), "root")
