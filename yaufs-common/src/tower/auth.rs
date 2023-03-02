@@ -74,6 +74,7 @@ where
             let span = tracing::info_span!("Authorizing request");
             let _ = span.enter();
 
+            tracing::info!("{:?}", request.headers().get(AUTHORIZATION));
             // extract the Authorization header
             match request.headers().get(AUTHORIZATION) {
                 Some(value) => {

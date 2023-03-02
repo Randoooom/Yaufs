@@ -46,10 +46,12 @@ pub async fn obtain_access_token(
     let span = tracing::info_span!("Authenticating on OIDC provider");
     let _ = span.enter();
 
-    service_account
+    let access_token = service_account
         .authenticate_with_options(issuer, authentication_options)
         .await
-        .unwrap()
+        .unwrap();
+    // insert bearer in from of the access_token
+    format!("Bearer {access_token}")
 }
 
 impl OIDCClient {
@@ -144,7 +146,6 @@ impl OIDCClient {
     #[tracing::instrument(skip_all)]
     pub async fn introspect_token_valid(&self, token: &str) -> Result<()> {
         let response = self.introspect(token).await?;
-
         // determine if all required roles are given to the token
         let has_scopes = if let Some(scopes) = response.scopes() {
             self.roles.iter().all(|role| scopes.contains(&role))

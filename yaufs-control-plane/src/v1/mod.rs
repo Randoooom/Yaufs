@@ -35,16 +35,16 @@ pub struct ControlPlaneV1Context {
 pub type Server = ControlPlaneV1Server<ControlPlaneV1Context>;
 
 pub async fn new(skytable: AsyncPool, kube_client: Client) -> yaufs_common::error::Result<Server> {
-    #[cfg(not(test))]
+    #[cfg(feature = "t")]
     {
-        // start the event consumer
-        let consumer = yaufs_common::fluvio_util::consumer().await?;
-        // access the fluvio stream
-        let mut stream = consumer.stream(Offset::end()).await?;
-        let pool = skytable.clone();
-
         // handle the stream in a new tokio process
         tokio::spawn(async move {
+            // start the event consumer
+            let consumer = yaufs_common::fluvio_util::consumer().await?;
+            // access the fluvio stream
+            let mut stream = consumer.stream(Offset::end()).await?;
+            let pool = skytable.clone();
+
             while let Some(Ok(record)) = stream.next().await {
                 let record: ConsumerRecord = record;
                 let key = record.key().ok_or(YaufsError::InternalServerError(
