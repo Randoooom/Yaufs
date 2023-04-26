@@ -15,6 +15,7 @@
  */
 
 use opentelemetry::global;
+use opentelemetry::propagation::{Injector, Extractor};
 use opentelemetry_http::HeaderExtractor;
 use std::time::Duration;
 use tonic::codegen::http::Request;
@@ -68,7 +69,6 @@ impl<B> MakeSpan<B> for MakeYaufsTonicSpan {
             rpc.system = "grpc",
             uri = %request.uri(),
             version = ?request.version(),
-            headers = ?request.headers(),
         );
         let context = global::get_text_map_propagator(|propagator| {
             propagator.extract(&HeaderExtractor(request.headers()))
@@ -81,4 +81,43 @@ impl<B> MakeSpan<B> for MakeYaufsTonicSpan {
 
 pub fn trace_layer() -> TraceLayer<SharedClassifier<GrpcErrorsAsFailures>, MakeYaufsTonicSpan> {
     TraceLayer::new_for_grpc().make_span_with(MakeYaufsTonicSpan)
+}
+
+/// Injects the tracing context for a new request 
+pub fn inject_tracing_context<T>(mut request: tonic::Request<T>) -> tonic::Request<T> {
+    global::get_text_map_propagator(|propagator| {
+        propagator.inject_context(&tracing::Span::current().context(), &mut MutMetadataMap(request.metadata_mut()))
+    });
+
+    request
+}
+
+
+struct MetadataMap<'a>(pub &'a tonic::metadata::MetadataMap);
+struct MutMetadataMap<'a>(pub &'a mut tonic::metadata::MetadataMap);
+
+impl<'a> Injector for MutMetadataMap<'a> {
+    fn set(&mut self, key: &str, value: String) {
+        if let Ok(key) = tonic::metadata::MetadataKey::from_bytes(key.as_bytes()) {
+            if let Ok(val) = tonic::metadata::MetadataValue::try_from(&value) {
+                self.0.insert(key, val);
+            }
+        }
+    }
+}
+
+impl<'a> Extractor for MetadataMap<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|metadata| metadata.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0
+            .keys()
+            .map(|key| match key {
+                tonic::metadata::KeyRef::Ascii(v) => v.as_str(),
+                tonic::metadata::KeyRef::Binary(v) => v.as_str(),
+            })
+            .collect::<Vec<_>>()
+    }
 }

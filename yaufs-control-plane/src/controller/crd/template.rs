@@ -60,6 +60,9 @@ pub async fn reconcile(
     template: Arc<Template>,
     context: Arc<ControllerContext>,
 ) -> Result<Action, ControlPlaneError> {
+    let span = info_span!("Reconcile", controller = "template");
+    let _ = span.enter();
+
     let client = &context.kube_client;
 
     let name = template.metadata.name.as_ref().expect("name on metadata");
@@ -71,6 +74,9 @@ pub async fn reconcile(
 
     match template.determine_action() {
         CRDAction::Create => {
+            let span = info_span!("creating template");
+            let guard = span.enter();
+
             // create the template
             let request = Request::new(CreateTemplateRequest {
                 name: name.to_string(),
@@ -82,8 +88,12 @@ pub async fn reconcile(
             let response: Response<yaufs_common::yaufs_proto::template_service_v1::Template> =
                 template_client.create_template(request).await?;
             let template = response.into_inner();
+            drop(guard);
 
             // write the returned id into the crd
+            let span = info_span!("Adding id to crd");
+            let guard = span.enter();
+
             let api = Api::<Template>::namespaced(client.clone(), namespace);
             let data = serde_json::json!({
                 "spec": {
@@ -94,11 +104,15 @@ pub async fn reconcile(
             // patch the crd
             api.patch(name.as_str(), &PatchParams::default(), &patch)
                 .await?;
+            drop(guard);
 
             // finalize the crd
             apply_finalizer::<Template>(name.as_str(), namespace.as_str(), client.clone()).await?;
         }
         CRDAction::Delete => {
+            let span = info_span!("deleting template");
+            let guard = span.enter();
+
             let template_id = template.spec.id.as_ref().expect("id on spec");
             // delete the template
             let request = Request::new(TemplateId {
@@ -108,6 +122,7 @@ pub async fn reconcile(
             let request = context.authorize_request(request).await?;
             let mut template_client = context.template_client.lock().await;
             template_client.delete_template(request).await?;
+            drop(guard);
 
             // remove the finalizer from the crd
             remove_finalizer::<Template>(name.as_str(), namespace.as_str(), client.clone()).await?;

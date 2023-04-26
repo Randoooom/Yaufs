@@ -54,6 +54,7 @@ where
 }
 
 /// Applies the finalizier to the specified crd
+#[tracing::instrument(skip(client))]
 pub async fn apply_finalizer<T>(
     name: &str,
     namespace: &str,
@@ -80,6 +81,7 @@ where
 }
 
 /// Removes the finalizier to the specified crd
+#[tracing::instrument(skip(client))]
 pub async fn remove_finalizer<T>(
     name: &str,
     namespace: &str,

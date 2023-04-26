@@ -26,6 +26,7 @@ use zitadel::oidc::introspection::{AuthorityAuthentication, ZitadelIntrospection
 const ISSUER: &str = "OIDC_ISSUER";
 const SERVICE_ACCOUNT: &str = "OIDC_SERVICE_ACCOUNT_KEY_PATH";
 const APPLICATION: &str = "OIDC_APPLICATION_KEY_PATH";
+const PROJECT_ID: &str = "OIDC_PROJECT_ID";
 
 #[derive(Clone, Debug)]
 pub struct OIDCClient {
@@ -89,7 +90,8 @@ impl OIDCClient {
             api_access: false,
             scopes: Vec::new(),
             roles: roles.clone(),
-            project_audiences: Vec::new(),
+            project_audiences: vec![std::env::var(PROJECT_ID)
+                .unwrap_or_else(|_| panic!("missing env var {PROJECT_ID}"))],
         };
 
         let roles = roles

@@ -63,6 +63,9 @@ async fn reconcile(
     instance: Arc<Instance>,
     context: Arc<ControllerContext>,
 ) -> Result<Action, ControlPlaneError> {
+    let span = info_span!("Reconcile", controller = "instance");
+    let _ = span.enter();
+
     let client = &context.kube_client;
 
     let id = instance.metadata.name.as_ref().expect("name on metadata");
@@ -99,6 +102,7 @@ async fn reconcile(
 /// Create a new deployment based on the given instance crd. The function ensures that the deployments
 /// starts and emits `YaufsEvent::INSTANCE_DEPLOYED` therefor. The integrity of the deployment as such
 /// is not given here, because this is handled by the specific controller for the `Deployment`.
+#[tracing::instrument(skip_all)]
 async fn create_deployment(
     id: &str,
     instance: &Instance,
@@ -162,6 +166,7 @@ async fn create_deployment(
 }
 
 /// Delete a deployment identified by the given instance.
+#[tracing::instrument(skip_all)]
 async fn delete_deployment(
     id: &str,
     context: Arc<ControllerContext>,

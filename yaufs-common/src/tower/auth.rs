@@ -74,21 +74,20 @@ where
             let span = tracing::info_span!("Authorizing request");
             let _ = span.enter();
 
-            tracing::info!("{:?}", request.headers().get(AUTHORIZATION));
             // extract the Authorization header
             match request.headers().get(AUTHORIZATION) {
                 Some(value) => {
-                    let introspection_span = tracing::info_span!("Introspecting token");
-                    let introspection_guard = introspection_span.enter();
+                    // split the token prefix off
+                    let raw = value.to_str().map_err(|_| YaufsError::Unauthorized)?;
+                    let split = raw.split(" ");
+                    let token = split.last().ok_or(YaufsError::Unauthorized)?;
 
+                    tracing::info!("Running introspection for {:?}", token);
                     let span = tracing::info_span!("Calling introspection endpoint");
                     let guard = span.enter();
-                    // parse the token as str
-                    let token = value.to_str().map_err(|_| YaufsError::Unauthorized)?;
                     // introspect the given token
                     client.introspect_token_valid(token).await?;
                     drop(guard);
-                    drop(introspection_guard);
 
                     // call the next layer and return the response
                     let response = inner.call(request).await.map_err(Into::into)?;
