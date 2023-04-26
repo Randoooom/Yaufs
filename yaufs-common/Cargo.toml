@@ -13,7 +13,7 @@ tower-http = { version = "0.4.0", features = ["trace"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 serde = { version = "1.0.152", features = ["derive"] }
-nanoid = { version = "0.4.0", optional = true }
+nanoid = { version = "0.4.0" }
 zitadel = { version = "3.1.21", features = ["credentials", "oidc"] }
 generic-array = { version = "0.14.6", optional = true }
 fluvio = { version = "0.17.0", features = ["rustls"], default-features = false, optional = true }
@@ -35,8 +35,8 @@ openidconnect = "3.0.0"
 
 [features]
 default = ["surrealdb", "skytable", "fluvio"]
+testing = []
 
-testing = ["dep:nanoid"]
 surrealdb = ["dep:surrealdb"]
 skytable = ["dep:skytable", "dep:generic-array"]
 fluvio = ["dep:fluvio"]

@@ -16,15 +16,36 @@
 
 use crate::prelude::*;
 use fluvio::TopicProducer;
+use serde::Deserialize;
 use surrealdb::engine::remote::ws::Client;
 use surrealdb::Surreal;
 use template_service_v1_server::{TemplateServiceV1, TemplateServiceV1Server};
+use yaufs_common::database::id::Id;
 
 mod handler;
 
 pub struct TemplateServiceV1Context {
     surreal: Surreal<Client>,
     producer: Option<TopicProducer>,
+}
+
+#[derive(Deserialize)]
+pub struct InternalV1Template {
+    pub id: Id,
+    pub name: String,
+    pub image: String,
+    pub created_at: String,
+}
+
+impl From<InternalV1Template> for Template {
+    fn from(value: InternalV1Template) -> Self {
+        Self {
+            id: value.id.to_string(),
+            image: value.image,
+            name: value.name,
+            created_at: value.created_at
+        }
+    }
 }
 
 pub type Server = TemplateServiceV1Server<TemplateServiceV1Context>;

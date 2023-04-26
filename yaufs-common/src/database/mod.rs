@@ -14,6 +14,7 @@
  *    limitations under the License.
  */
 
+pub mod id;
 pub mod paging;
 #[cfg(feature = "skytable")]
 pub mod skytable;
