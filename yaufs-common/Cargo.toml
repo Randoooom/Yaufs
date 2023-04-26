@@ -7,7 +7,7 @@ edition = "2021"
 yaufs-proto = { path = "../yaufs-proto" }
 
 skytable = { version = "0.7.3", features = ["aio"], optional = true }
-surrealdb = { version = "1.0.0-beta.9", optional = true }
+surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "5eafebd", optional = true }
 tokio = { version = "1.24.1", features = ["rt"] }
 tower-http = { version = "0.4.0", features = ["trace"] }
 opentelemetry-jaeger = { version = "0.18.0", features = ["rt-tokio"] }
