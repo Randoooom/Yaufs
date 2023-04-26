@@ -38,7 +38,7 @@ jobs:
           SURREALDB_USERNAME: root
           SURREALDB_PASSWORD: root
         run:  |
-          docker run -d -p 8080:8000 surrealdb/surrealdb:nightly start -u root -p root
+          docker run -d -p 8080:8000 surrealdb/surrealdb start -u root -p root
           cargo test
 
   lint:
