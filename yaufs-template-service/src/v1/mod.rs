@@ -85,7 +85,6 @@ impl TemplateServiceV1 for TemplateServiceV1Context {
 #[cfg(test)]
 mod tests {
     use crate::init;
-    use surrealdb::sql;
     use tonic::Response;
     use yaufs_common::yaufs_proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
     use yaufs_common::yaufs_proto::template_service_v1::{
@@ -111,8 +110,8 @@ mod tests {
         let (address, surreal, _) = init().await?;
 
         surreal
-            .query(sql! (CREATE template SET image = $image1, name = $name1))
-            .query(sql! (CREATE template SET image = $image2, name = $name2))
+            .query("CREATE template SET image = $image1, name = $name1")
+            .query("CREATE template SET image = $image2, name = $name2")
             .bind(("image1", "test1"))
             .bind(("image2", "test2"))
             .bind(("name1", "test1"))
