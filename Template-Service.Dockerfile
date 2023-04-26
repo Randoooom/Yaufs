@@ -2,7 +2,7 @@ FROM rust:slim-buster as build
 
 RUN apt-get update
 RUN apt-get install build-essential libssl-dev pkg-config clang lld protobuf-compiler git -y
-RUN rustup default nightly
+RUN rustup default nightly-2023-04-10
 
 # we need to do this due the requirement of the current git hash for fluvio-socket
 RUN git init
