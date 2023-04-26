@@ -14,11 +14,9 @@
  *    limitations under the License.
  */
 
-use async_once::AsyncOnce;
 use fluvio::TopicProducer;
 use kube::runtime::controller::Action;
 use kube::Client;
-use lazy_static::lazy_static;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
@@ -34,14 +32,6 @@ const INSTANCE: &str = "instance";
 const TEMPLATE_SERVICE_ENDPOINT: &str = "TEMPLATE_SERVICE_ENDPOINT";
 
 pub mod crd;
-
-lazy_static! {
-    pub static ref OPENID_CLIENT: AsyncOnce<OIDCClient> = AsyncOnce::new(async move {
-        OIDCClient::new_from_env(vec!["templating".to_owned(), "control-plane".to_owned()])
-            .await
-            .unwrap()
-    });
-}
 
 #[derive(Error, Debug)]
 pub enum ControlPlaneError {
@@ -67,6 +57,7 @@ pub struct ControllerContext {
     kube_client: Client,
     producer: TopicProducer,
     template_client: Arc<Mutex<TemplateServiceV1Client<Channel>>>,
+    oidc_client: OIDCClient,
 }
 
 impl ControllerContext {
@@ -74,8 +65,7 @@ impl ControllerContext {
         &self,
         mut request: Request<T>,
     ) -> Result<Request<T>, ControlPlaneError> {
-        let oidc_client = OPENID_CLIENT.get().await;
-        let access_token = oidc_client.obtain_access_token().await?;
+        let access_token = self.oidc_client.obtain_access_token().await?;
         request
             .metadata_mut()
             .insert(AUTHORIZATION.as_str(), access_token.parse().unwrap());
@@ -106,6 +96,11 @@ pub async fn init(client: Client) -> Result<(), Box<dyn std::error::Error>> {
         // establish connection to the event streaming spu gorup
         producer: yaufs_common::fluvio_util::producer().await?,
         template_client: Arc::new(Mutex::new(template_client)),
+        oidc_client: OIDCClient::new_from_env(vec![
+            String::from("templating"),
+            String::from("control-plane"),
+        ])
+        .await?,
     });
 
     // start the controllers

@@ -49,6 +49,7 @@ kubectl exec -n vault vault-0 -- vault secrets tune -max-lease-ttl=87600h pki
 kubectl exec -n vault vault-0 -- vault write -field=certificate pki/root/generate/internal \
   common_name="$HOST" \
   ttl=87600h | tee output/vault-root.ca
+cp output/vault-root.ca output/ca.crt
 
 kubectl exec -n vault vault-0 -- vault write pki/config/urls \
   issuing_certificates="http://vault.vault.svc.cluster.local:8200/v1/pki/ca" \
@@ -64,7 +65,7 @@ kubectl exec -n vault vault-0 -- vault write pki/roles/linkerd \
   max_ttl=8760h
 
 kubectl exec -n vault vault-0 -- vault write pki/roles/cluster \
-  allowed_domains="$HOST,svc.cluster.local,*cockroachdb-public*,node,*cockroachdb*,127.0.0.1,root" \
+  allowed_domains="$HOST,svc.cluster.local,*cockroachdb-public*,node,*cockroachdb*,127.0.0.1,root,fluvio.local" \
   allow_subdomains=true \
   allow_bare_domains=true \
   allow_glob_domains=true \
@@ -103,6 +104,10 @@ kubectl exec -n vault vault-0 -- sh -c 'vault policy write template-service - <<
 path "yaufs/template/*"   { capabilities = ["create", "update", "read"] }
 EOF'
 
+kubectl exec -n vault vault-0 -- sh -c 'vault policy write control-plane - <<EOF
+path "yaufs/control-plane/*"   { capabilities = ["create", "update", "read"] }
+EOF'
+
 kubectl exec -n vault vault-0 -- sh -c 'vault policy write zitadel - <<EOF
 path "zitadel/*"   { capabilities = ["create", "update", "read"] }
 EOF'
@@ -132,6 +137,12 @@ kubectl exec -n vault vault-0 -- vault write auth/kubernetes/role/template-servi
   bound_service_account_names=template-service \
   bound_service_account_namespaces=template-service \
   policies="template-service" \
+  ttl=1h
+
+kubectl exec -n vault vault-0 -- vault write auth/kubernetes/role/control-plane \
+  bound_service_account_names=yaufs-control-plane \
+  bound_service_account_namespaces=control-plane \
+  policies="control-plane" \
   ttl=1h
 
 kubectl exec -n vault vault-0 -- vault write auth/kubernetes/role/zitadel \
@@ -197,10 +208,12 @@ Database:
       Password: '$ZITADEL_COCKROACH_ADMIN_PASSWORD'
 EOF"
 
-echo "Initiating kv for yaufs-services"
 kubectl exec -n vault vault-0 -- vault write yaufs/template/surrealdb \
   username="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)" \
   password="$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32)"
+
+kubectl exec -n vault vault-0 -- vault write yaufs/control-plane/skytable \
+  origin-key="$(openssl rand -hex 20)"
 
 echo "Setup finished"
 echo "Vault credentials saved to vault.json"

@@ -21,6 +21,7 @@ use fluvio::Offset;
 use futures::stream::StreamExt;
 use kube::Client;
 use yaufs_common::error::YaufsError;
+use yaufs_common::fluvio_err;
 use yaufs_common::skytable::ddl::{AsyncDdl, Keymap, KeymapType};
 use yaufs_common::skytable::pool::AsyncPool;
 use yaufs_common::yaufs_proto::fluvio::{TemplateCreated, TemplateDeleted, YaufsEvent};
@@ -35,15 +36,15 @@ pub struct ControlPlaneV1Context {
 pub type Server = ControlPlaneV1Server<ControlPlaneV1Context>;
 
 pub async fn new(skytable: AsyncPool, kube_client: Client) -> yaufs_common::error::Result<Server> {
-    #[cfg(feature = "t")]
+    #[cfg(not(test))]
     {
         // handle the stream in a new tokio process
+        let pool = skytable.clone();
         tokio::spawn(async move {
             // start the event consumer
             let consumer = yaufs_common::fluvio_util::consumer().await?;
             // access the fluvio stream
-            let mut stream = consumer.stream(Offset::end()).await?;
-            let pool = skytable.clone();
+            let mut stream = fluvio_err!(consumer.stream(Offset::end()).await)?;
 
             while let Some(Ok(record)) = stream.next().await {
                 let record: ConsumerRecord = record;

@@ -1,1 +1,38 @@
+logLevel: Debug
+name: yaufs-control-plane
+image: ghcr.io/randoooom/yaufs-control-plane:nightly
+annotations:
+podAnnotations:
 
+serviceAccount:
+  create: true
+  name: yaufs-control-plane
+  rbac: true
+
+oidc:
+  hostAlias:
+    enabled: false
+    ip: ""
+    hostname: ""
+
+  issuer: ""
+  secret: oidc-keys
+  serviceAccountKeyKey: service-account-json
+  applicationKeyKey: application-json
+  projectId: ""
+
+  caSecret: ""
+
+service:
+  name: yaufs-control-plane
+  type: ClusterIP
+
+skytable:
+  name: skytable
+  image: skytable/sdb:v0.7.5
+  podAnnotations:
+  service:
+    type: ClusterIP
+
+fluvio:
+  tlsSecret: fluvio-tls

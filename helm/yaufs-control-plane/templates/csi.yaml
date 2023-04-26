@@ -1,0 +1,19 @@
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: vault-control-plane
+spec:
+  provider: vault
+  secretObjects:
+    - data:
+        - key: origin-key
+          objectName: origin-key
+      secretName: skytable
+      type: Opaque
+  parameters:
+    vaultAddress: "https://vault.vault.svc.cluster.local:8200"
+    roleName: "control-plane"
+    objects: |
+      - objectName: "origin-key"
+        secretPath: "yaufs/control-plane/skytable"
+        secretKey: "origin-key"

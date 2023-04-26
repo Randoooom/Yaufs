@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.skytable.name }}
+  labels:
+    app: {{ .Values.skytable.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.skytable.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.skytable.name }}
+      annotations:
+        {{- range $key, $value := $.Values.skytable.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - image: {{ .Values.skytable.image }}
+          name: {{ .Values.skytable.name }}
+          command: ["skyd"]
+          imagePullPolicy: Always
+          env:
+            - name: SKY_AUTH_ORIGIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: skytable
+                  key: origin-key
+            - name: SKY_SYSTEM_HOST
+              value: 0.0.0.0
+            - name: SKY_SYSTEM_PORT
+              value: "2003"
+            - name: SKY_DEPLOYMENT_MODE
+              value: prod
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          ports:
+            - containerPort: 2003
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "vault-control-plane"

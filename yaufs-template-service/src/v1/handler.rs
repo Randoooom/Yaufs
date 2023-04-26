@@ -76,7 +76,8 @@ pub async fn delete_template(
     producer
         .unwrap()
         .send(YaufsEvent::TEMPLATE_DELETED, TemplateDeleted::new(data.id))
-        .await?;
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
 
     Ok(Response::new(Empty {}))
 }
@@ -98,7 +99,8 @@ pub async fn create_template(
             YaufsEvent::TEMPLATE_CREATED,
             TemplateCreated::new(&template.id),
         )
-        .await?;
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
 
     Ok(Response::new(template))
 }

@@ -24,12 +24,12 @@ spec:
           name: surrealdb
           imagePullPolicy: Always
           env:
-            - name: USER
+            - name: SURREAL_USER
               valueFrom:
                 secretKeyRef:
                   name: surrealdb-credentials
                   key: username
-            - name: PASS
+            - name: SURREAL_PASS
               valueFrom:
                 secretKeyRef:
                   name: surrealdb-credentials

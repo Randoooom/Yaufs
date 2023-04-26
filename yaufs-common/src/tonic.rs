@@ -15,7 +15,7 @@
  */
 
 use opentelemetry::global;
-use opentelemetry::propagation::{Injector, Extractor};
+use opentelemetry::propagation::{Extractor, Injector};
 use opentelemetry_http::HeaderExtractor;
 use std::time::Duration;
 use tonic::codegen::http::Request;
@@ -83,15 +83,17 @@ pub fn trace_layer() -> TraceLayer<SharedClassifier<GrpcErrorsAsFailures>, MakeY
     TraceLayer::new_for_grpc().make_span_with(MakeYaufsTonicSpan)
 }
 
-/// Injects the tracing context for a new request 
+/// Injects the tracing context for a new request
 pub fn inject_tracing_context<T>(mut request: tonic::Request<T>) -> tonic::Request<T> {
     global::get_text_map_propagator(|propagator| {
-        propagator.inject_context(&tracing::Span::current().context(), &mut MutMetadataMap(request.metadata_mut()))
+        propagator.inject_context(
+            &tracing::Span::current().context(),
+            &mut MutMetadataMap(request.metadata_mut()),
+        )
     });
 
     request
 }
-
 
 struct MetadataMap<'a>(pub &'a tonic::metadata::MetadataMap);
 struct MutMetadataMap<'a>(pub &'a mut tonic::metadata::MetadataMap);

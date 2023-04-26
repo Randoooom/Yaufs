@@ -16,7 +16,7 @@
 
 use surrealdb::engine::remote::ws::{Client, Ws};
 use surrealdb::opt::auth::Root;
-use surrealdb::{sql, Surreal};
+use surrealdb::Surreal;
 use version_compare::{Cmp, Version};
 
 const SURREALDB_ENDPOINT: &str = "SURREALDB_ENDPOINT";
@@ -64,7 +64,7 @@ pub async fn connect(up: &'static str) -> Result<Surreal<Client>, Box<dyn std::e
     }
 
     // execute the up queries
-    client.query(sql::parse(up)?).await?;
+    client.query(up).await?;
     tracing::info!("Initiated tables");
 
     Ok(client)
@@ -82,9 +82,7 @@ pub async fn migrate(
             DEFINE FIELD version     on TABLE migration TYPE string ASSERT $value IS NOT NULL;
             DEFINE FIELD created_at  on TABLE migration TYPE datetime VALUE time::now();",
         )
-        .query(sql!(
-            SELECT version, created_at FROM migration ORDER BY created_at DESC LIMIT 1
-        ))
+        .query("SELECT version, created_at FROM migration ORDER BY created_at DESC LIMIT 1")
         .await?;
     // take the last as response, which contains the last migrated version
     let last = responses.take::<Option<String>>((1, "version"))?;
@@ -102,7 +100,7 @@ pub async fn migrate(
                     // execute the migration query and mark it as done
                     client
                         .query(migration)
-                        .query(sql!(CREATE migration SET version = $version))
+                        .query("CREATE migration SET version = $version")
                         .bind(("version", version))
                         .await?;
                 }
@@ -111,7 +109,7 @@ pub async fn migrate(
     } else {
         // insert the current version as the last version
         client
-            .query(sql!(CREATE migration SET version = $version))
+            .query("CREATE migration SET version = $version")
             .bind(("version", current_version))
             .await?;
     }

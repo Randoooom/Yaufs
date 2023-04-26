@@ -25,6 +25,7 @@ use kube::{Api, Client};
 use std::sync::Arc;
 use tonic::{Request, Response};
 use yaufs_common::error::YaufsError;
+use yaufs_common::fluvio_err;
 use yaufs_common::yaufs_proto::fluvio::{InstanceDeployed, InstanceStopped, YaufsEvent};
 use yaufs_common::yaufs_proto::template_service_v1::{Template, TemplateId};
 
@@ -150,17 +151,19 @@ async fn create_deployment(
         .await?;
 
     // emit the instance deployed event
-    context
-        .producer
-        .send(
-            YaufsEvent::INSTANCE_DEPLOYED,
-            InstanceDeployed {
-                id: id.to_string(),
-                // TODO
-                issuer: None,
-            },
-        )
-        .await?;
+    fluvio_err!(
+        context
+            .producer
+            .send(
+                YaufsEvent::INSTANCE_DEPLOYED,
+                InstanceDeployed {
+                    id: id.to_string(),
+                    // TODO
+                    issuer: None,
+                },
+            )
+            .await
+    )?;
 
     Ok(())
 }
@@ -178,17 +181,19 @@ async fn delete_deployment(
     debug!("Starting termination of instance {}", id);
 
     // emit the instance stopped event
-    context
-        .producer
-        .send(
-            YaufsEvent::INSTANCE_STOPPED,
-            InstanceStopped {
-                id: id.to_string(),
-                // TODO
-                issuer: None,
-            },
-        )
-        .await?;
+    fluvio_err!(
+        context
+            .producer
+            .send(
+                YaufsEvent::INSTANCE_STOPPED,
+                InstanceStopped {
+                    id: id.to_string(),
+                    // TODO
+                    issuer: None,
+                },
+            )
+            .await
+    )?;
 
     Ok(())
 }

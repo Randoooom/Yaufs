@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name }}
+spec:
+  ports:
+    - name: {{ .Values.name }}
+      targetPort: 8000
+      port: 8000
+      protocol: TCP
+  selector:
+    app: {{ .Values.name }}
+  type: {{ .Values.service.type }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skytable
+spec:
+  ports:
+    - name: skytable
+      targetPort: 2003
+      port: 2003
+      protocol: TCP
+  selector:
+    app: {{ .Values.skytable.name }}
+  type: {{ .Values.skytable.service.type }}
+
+{{ if .Values.serviceAccount.create }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+{{- end}}

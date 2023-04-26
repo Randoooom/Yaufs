@@ -14,7 +14,7 @@
  *    limitations under the License.
  */
 
-use crate::error::Result;
+use crate::error::{Result, YaufsError};
 use cached::lazy_static::lazy_static;
 use fluvio::config::{TlsConfig, TlsPaths, TlsPolicy};
 use fluvio::{Fluvio, FluvioConfig, PartitionConsumer, TopicProducer};
@@ -51,18 +51,35 @@ lazy_static! {
 
 pub async fn producer() -> Result<TopicProducer> {
     // connect to the fluvio spu group
-    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG).await?;
+    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG)
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
     // start the producer
-    let producer = fluvio.topic_producer("events").await?;
+    let producer = fluvio
+        .topic_producer("events")
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
 
     Ok(producer)
 }
 
 pub async fn consumer() -> Result<PartitionConsumer> {
     // connect to the fluvio spu group
-    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG).await?;
+    let fluvio = Fluvio::connect_with_config(&FLUVIO_CONFIG)
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
     // start the consumer
-    let consumer = fluvio.partition_consumer("events", 0).await?;
+    let consumer = fluvio
+        .partition_consumer("events", 0)
+        .await
+        .map_err(|error| YaufsError::FluvioError(error.to_string()))?;
 
     Ok(consumer)
+}
+
+#[macro_export]
+macro_rules! fluvio_err {
+    ($expr:expr) => {
+        $expr.map_err(|error| YaufsError::FluvioError(error.to_string()))
+    };
 }
