@@ -77,9 +77,11 @@ impl ControllerContext {
 
 pub fn default_error_policy<T>(
     _object: Arc<T>,
-    _error: &ControlPlaneError,
+    error: &ControlPlaneError,
     _context: Arc<ControllerContext>,
 ) -> Action {
+    error!("Error occurred during reconcile: {:?}", error);
+    
     Action::requeue(Duration::from_secs(30))
 }
 
