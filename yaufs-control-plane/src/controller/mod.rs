@@ -26,6 +26,7 @@ use tonic::transport::Channel;
 use tonic::{Request, Status};
 use yaufs_common::error::YaufsError;
 use yaufs_common::oidc::OIDCClient;
+use yaufs_common::tonic::inject_tracing_context;
 use yaufs_common::yaufs_proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
 
 const INSTANCE: &str = "instance";
@@ -70,7 +71,7 @@ impl ControllerContext {
             .metadata_mut()
             .insert(AUTHORIZATION.as_str(), access_token.parse().unwrap());
 
-        Ok(request)
+        Ok(inject_tracing_context(request))
     }
 }
 

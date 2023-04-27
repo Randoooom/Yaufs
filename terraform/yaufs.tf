@@ -140,7 +140,7 @@ resource "helm_release" "yaufs_template_service" {
 
   values = [
     yamlencode({
-      "logLevel" = "Debug",
+      "logLevel" = "Info",
       "oidc"     = {
         "issuer"    = "https://auth.${var.host}"
         "hostAlias" = {
@@ -148,6 +148,7 @@ resource "helm_release" "yaufs_template_service" {
           "ip"       = data.kubernetes_service.nginx.spec.0.cluster_ip
           "hostname" = "auth.${var.host}"
         }
+        "projectId" = tostring(module.zitadel.project_id)
         "caSecret" = "vault-ca"
       }
     })

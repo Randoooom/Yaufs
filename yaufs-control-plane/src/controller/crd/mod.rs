@@ -29,6 +29,16 @@ pub enum CRDAction {
     Update,
 }
 
+impl ToString for CRDAction {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Create => "CREATE".to_owned(),
+            Self::Delete => "DELETE".to_owned(),
+            Self::Update => "UPDATE".to_owned(),
+        }
+    }
+}
+
 pub trait ActionDeterminable {
     fn determine_action(&self) -> CRDAction;
 }

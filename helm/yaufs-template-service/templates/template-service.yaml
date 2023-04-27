@@ -48,6 +48,8 @@ spec:
                 secretKeyRef:
                   name: surrealdb-credentials
                   key: password
+            - name: OIDC_PROJECT_ID
+              value: "{{ .Values.oidc.projectId }}"
             - name: OIDC_ISSUER
               value: {{ .Values.oidc.issuer }}
             - name: OIDC_SERVICE_ACCOUNT_KEY_PATH

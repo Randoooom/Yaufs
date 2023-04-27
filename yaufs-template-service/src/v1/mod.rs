@@ -43,7 +43,7 @@ impl From<InternalV1Template> for Template {
             id: value.id.to_string(),
             image: value.image,
             name: value.name,
-            created_at: value.created_at
+            created_at: value.created_at,
         }
     }
 }
@@ -106,6 +106,8 @@ impl TemplateServiceV1 for TemplateServiceV1Context {
 #[cfg(test)]
 mod tests {
     use crate::init;
+    use crate::prelude::{Template, TemplateId};
+    use crate::v1::InternalV1Template;
     use tonic::Response;
     use yaufs_common::yaufs_proto::template_service_v1::template_service_v1_client::TemplateServiceV1Client;
     use yaufs_common::yaufs_proto::template_service_v1::{
@@ -122,6 +124,28 @@ mod tests {
             image: "test-image".to_string(),
         });
         client.create_template(request).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_template() -> Result<(), Box<dyn std::error::Error>> {
+        let (address, surreal, _) = init().await?;
+
+        let template = surreal
+            .query("CREATE template SET image = $image1, name = $name1")
+            .bind(("image1", "test1"))
+            .bind(("name1", "test1"))
+            .await?
+            .take::<Option<InternalV1Template>>(0)?
+            .unwrap();
+
+        let mut client = TemplateServiceV1Client::connect(address).await?;
+        let request = tonic::Request::new(TemplateId {
+            id: template.id.to_string(),
+        });
+        let response: Response<Template> = client.get_template(request).await?;
+        assert_eq!(Template::from(template), response.into_inner());
 
         Ok(())
     }

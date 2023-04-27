@@ -17,7 +17,9 @@
 use crate::error::YaufsError;
 use nanoid::nanoid;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "surrealdb")]
 use surrealdb::opt::{IntoResource, Resource};
+#[cfg(feature = "surrealdb")]
 use surrealdb::sql::Thing;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,7 +59,7 @@ impl Id {
     pub fn new_random(table: &str) -> Self {
         Self {
             table: table.to_string(),
-            id: nanoid!().to_string(),
+            id: nanoid!(),
         }
     }
 
@@ -87,6 +89,7 @@ impl<'de> Deserialize<'de> for Id {
             return Ok(Self { table, id });
         }
 
+        #[cfg(feature = "surrealdb")]
         if raw_value.is_object() {
             // deserialize it as `Thing`
             // TODO: map err
@@ -116,6 +119,7 @@ impl Serialize for Id {
     }
 }
 
+#[cfg(feature = "surrealdb")]
 impl<R> IntoResource<Option<R>> for &Id {
     fn into_resource(self) -> surrealdb::Result<Resource> {
         Ok(Resource::RecordId(self.to_thing()))

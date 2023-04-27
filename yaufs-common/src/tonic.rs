@@ -87,7 +87,7 @@ pub fn trace_layer() -> TraceLayer<SharedClassifier<GrpcErrorsAsFailures>, MakeY
 pub fn inject_tracing_context<T>(mut request: tonic::Request<T>) -> tonic::Request<T> {
     global::get_text_map_propagator(|propagator| {
         propagator.inject_context(
-            &tracing::Span::current().context(),
+            &Span::current().context(),
             &mut MutMetadataMap(request.metadata_mut()),
         )
     });

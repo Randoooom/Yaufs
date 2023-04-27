@@ -64,8 +64,14 @@ async fn reconcile(
     instance: Arc<Instance>,
     context: Arc<ControllerContext>,
 ) -> Result<Action, ControlPlaneError> {
-    let span = info_span!("Reconcile", controller = "instance");
+    let action = instance.determine_action();
+    let span = info_span!(
+        "Reconcile",
+        controller = "instance",
+        action = action.to_string(),
+    );
     let _ = span.enter();
+    tracing::warn!("{:?}", instance);
 
     let client = &context.kube_client;
 
@@ -77,19 +83,21 @@ async fn reconcile(
         .expect("namespace on metadata");
 
     // match the event type
-    match instance.determine_action() {
+    match action {
         CRDAction::Create => {
+            tracing::info!("Starting instance {}", id);
             create_deployment(id.as_str(), &instance, context.clone()).await?;
             // finalize the crd
             apply_finalizer::<Instance>(id.as_str(), namespace.as_str(), client.clone()).await?;
         }
         CRDAction::Delete => {
+            tracing::info!("Stopping instance {}", id);
             delete_deployment(id, context.clone()).await?;
             // delete the finalizer
             remove_finalizer::<Instance>(id.as_str(), namespace.as_str(), client.clone()).await?;
         }
         CRDAction::Update => {
-            debug!("Redeploying instance {}", id);
+            tracing::info!("Redeploying instance {}", id);
             // delete the deployment
             delete_deployment(id, context.clone()).await?;
             // deploy a new instance
