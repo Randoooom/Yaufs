@@ -136,7 +136,7 @@ async fn create_deployment(
     let deployments = Api::<Deployment>::namespaced(context.kube_client.clone(), INSTANCE);
     // build the yaml configuration
     let deployment: Deployment = serde_json::from_value(serde_json::json!({
-        "apiVersion": "v1",
+        "apiVersion": "apps/v1",
         "kind": "Deployment",
         "metadata": {
             "name": id,
