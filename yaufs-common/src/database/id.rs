@@ -63,6 +63,7 @@ impl Id {
         }
     }
 
+    #[cfg(feature = "surrealdb")]
     pub fn to_thing(&self) -> Thing {
         Thing::from((self.table.as_str(), self.id.as_str()))
     }
