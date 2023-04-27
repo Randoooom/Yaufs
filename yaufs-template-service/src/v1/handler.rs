@@ -101,7 +101,16 @@ pub async fn create_template(
 ) -> Result<Response<Template>> {
     let data = request.into_inner();
     // create the template
-    let template: InternalV1Template = sql_span!(surreal.create("template").content(data).await)?;
+    // for better human readable kubernetes configuration via the crd controller we
+    // use `template:<NAME>` as format for identifying a single template. Therefor the renaming\
+    // of an existing template is not possible yet and maybe added in the future
+    // TODO: may consider renaming
+    let template: InternalV1Template = sql_span!(
+        surreal
+            .create(("template", data.name.as_str()))
+            .content(data)
+            .await
+    )?;
     let template = Template::from(template);
 
     // emit the creation event

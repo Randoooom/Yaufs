@@ -16,6 +16,11 @@
 
 use crate::error::YaufsError;
 use nanoid::nanoid;
+use schemars::gen::SchemaGenerator;
+#[cfg(feature =  "schemars")]
+use schemars::JsonSchema;
+#[cfg(feature =  "schemars")]
+use schemars::schema::{InstanceType, Schema, SchemaObject};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "surrealdb")]
 use surrealdb::opt::{IntoResource, Resource};
@@ -124,5 +129,21 @@ impl Serialize for Id {
 impl<R> IntoResource<Option<R>> for &Id {
     fn into_resource(self) -> surrealdb::Result<Resource> {
         Ok(Resource::RecordId(self.to_thing()))
+    }
+}
+
+#[cfg(feature = "schemars")]
+impl JsonSchema for Id {
+    fn schema_name() -> String {
+        "Id".to_owned()
+    }
+
+    fn json_schema(_: &mut SchemaGenerator) -> Schema {
+        SchemaObject {
+            instance_type: Some(InstanceType::String.into()),
+            format: Some("string".to_string()),
+            ..Default::default()
+        }
+        .into()
     }
 }

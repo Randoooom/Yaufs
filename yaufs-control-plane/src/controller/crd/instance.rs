@@ -24,6 +24,7 @@ use kube::runtime::Controller;
 use kube::{Api, Client};
 use std::sync::Arc;
 use tonic::{Request, Response};
+use yaufs_common::database::id::Id;
 use yaufs_common::error::YaufsError;
 use yaufs_common::fluvio_err;
 use yaufs_common::yaufs_proto::fluvio::{InstanceDeployed, InstanceStopped, YaufsEvent};
@@ -33,7 +34,8 @@ use yaufs_common::yaufs_proto::template_service_v1::{Template, TemplateId};
 #[kube(group = "yaufs.io", version = "v1alpha1", kind = "Instance")]
 #[kube(namespaced)]
 pub struct InstanceSpec {
-    template: String,
+    // this is the id of the template
+    template: Id,
     replicas: u8,
 }
 
@@ -71,7 +73,7 @@ async fn reconcile(
         action = action.to_string(),
     );
     let _ = span.enter();
-    tracing::warn!("{:?}", instance);
+    warn!("{:?}", instance);
 
     let client = &context.kube_client;
 
@@ -85,19 +87,19 @@ async fn reconcile(
     // match the event type
     match action {
         CRDAction::Create => {
-            tracing::info!("Starting instance {}", id);
+            info!("Starting instance {}", id);
             create_deployment(id.as_str(), &instance, context.clone()).await?;
             // finalize the crd
             apply_finalizer::<Instance>(id.as_str(), namespace.as_str(), client.clone()).await?;
         }
         CRDAction::Delete => {
-            tracing::info!("Stopping instance {}", id);
+            info!("Stopping instance {}", id);
             delete_deployment(id, context.clone()).await?;
             // delete the finalizer
             remove_finalizer::<Instance>(id.as_str(), namespace.as_str(), client.clone()).await?;
         }
         CRDAction::Update => {
-            tracing::info!("Redeploying instance {}", id);
+            info!("Redeploying instance {}", id);
             // delete the deployment
             delete_deployment(id, context.clone()).await?;
             // deploy a new instance
@@ -117,9 +119,13 @@ async fn create_deployment(
     instance: &Instance,
     context: Arc<ControllerContext>,
 ) -> Result<(), ControlPlaneError> {
+    tracing::warn!(
+        "Creating deployment for template '{}'",
+        instance.spec.template.to_string()
+    );
     // fetch the template
     let request = Request::new(TemplateId {
-        id: instance.spec.template.clone(),
+        id: instance.spec.template.to_string(),
     });
     let request = context.authorize_request(request).await?;
     let mut template_client = context.template_client.lock().await;
@@ -186,7 +192,7 @@ async fn delete_deployment(
     let deployments = Api::<Deployment>::namespaced(context.kube_client.clone(), INSTANCE);
     // delete the deployment
     deployments.delete(id, &DeleteParams::default()).await?;
-    debug!("Starting termination of instance {}", id);
+    info!("Starting termination of instance {}", id);
 
     // emit the instance stopped event
     fluvio_err!(
