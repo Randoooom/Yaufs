@@ -16,11 +16,12 @@
 
 use crate::error::YaufsError;
 use nanoid::nanoid;
+#[cfg(feature = "schemars")]
 use schemars::gen::SchemaGenerator;
-#[cfg(feature =  "schemars")]
-use schemars::JsonSchema;
-#[cfg(feature =  "schemars")]
+#[cfg(feature = "schemars")]
 use schemars::schema::{InstanceType, Schema, SchemaObject};
+#[cfg(feature = "schemars")]
+use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "surrealdb")]
 use surrealdb::opt::{IntoResource, Resource};
