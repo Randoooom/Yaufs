@@ -144,10 +144,23 @@ async fn create_deployment(
             "annotations": {
                 "linkerd.io/inject": "enabled",
             },
+            "labels": {
+                "app": id,
+            },
         },
         "spec": {
+            "selector": {
+                "matchLabels": {
+                    "app": id,
+                },
+            },
             "replicas": &instance.spec.replicas,
             "template": {
+                "metadata": {
+                    "labels": {
+                        "app": id,
+                    },            
+                },
                 "spec": {
                     "containers": [
                         {
