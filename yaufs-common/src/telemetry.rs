@@ -30,16 +30,16 @@ pub fn init_tracing(service_name: &'static str) {
         .with(tracing_subscriber::fmt::layer())
         .with(EnvFilter::from_default_env());
 
-    cfg_if::cfg_if! {
-        if #[cfg(not(debug_assertions))] {
-            global::set_text_map_propagator(TraceContextPropagator::new());
-            let tracer = opentelemetry_jaeger::new_agent_pipeline()
-                .with_service_name(service_name)
-                .install_batch(opentelemetry::runtime::Tokio)
-                .unwrap();
-            let layer = tracing_opentelemetry::layer().with_tracer(tracer);
-            let subscriber = subscriber.with(layer);
-        }
+    #[cfg(not(debug_assertions))]
+    #[cfg(feature = "open-telemetry")]
+    {
+        global::set_text_map_propagator(TraceContextPropagator::new());
+        let tracer = opentelemetry_jaeger::new_agent_pipeline()
+            .with_service_name(service_name)
+            .install_batch(opentelemetry::runtime::Tokio)
+            .unwrap();
+        let layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = subscriber.with(layer);
     }
 
     tracing::subscriber::set_global_default(subscriber).ok();

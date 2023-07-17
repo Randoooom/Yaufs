@@ -14,33 +14,26 @@
  *    limitations under the License.
  */
 
-#[cfg(feature = "net")]
-extern crate alloc;
+#[macro_use]
+extern crate tracing;
+#[macro_use]
+extern crate async_trait;
+#[macro_use]
+extern crate getset;
 extern crate core;
-#[cfg(feature = "net")]
-pub extern crate craftio_rs;
-#[cfg(feature = "fluvio")]
-pub extern crate fluvio;
-#[cfg(feature = "net")]
-pub extern crate mcproto_rs;
-#[cfg(feature = "skytable")]
-pub extern crate skytable;
-#[cfg(feature = "surrealdb")]
-pub extern crate surrealdb;
-pub extern crate yaufs_proto;
 
-#[cfg(feature = "net")]
-pub use mcproto_rs::*;
+mod proxy;
 
-pub mod database;
-pub mod error;
-#[cfg(feature = "fluvio")]
-pub mod fluvio_util;
-#[cfg(feature = "net")]
-pub mod net;
-pub mod oidc;
-pub mod telemetry;
-pub mod tonic;
-pub mod tower;
+const ADDRESS: &str = "0.0.0.0:25565";
 
-mod util;
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    yaufs_common::init_telemetry!();
+
+    // start the proxy
+    let proxy = proxy::ProxySocket::new();
+    let proxy = tokio::spawn(async move { proxy.start().await });
+    let _ = proxy.await;
+
+    Ok(())
+}

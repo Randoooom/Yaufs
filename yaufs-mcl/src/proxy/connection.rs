@@ -14,33 +14,25 @@
  *    limitations under the License.
  */
 
-#[cfg(feature = "net")]
-extern crate alloc;
-extern crate core;
-#[cfg(feature = "net")]
-pub extern crate craftio_rs;
-#[cfg(feature = "fluvio")]
-pub extern crate fluvio;
-#[cfg(feature = "net")]
-pub extern crate mcproto_rs;
-#[cfg(feature = "skytable")]
-pub extern crate skytable;
-#[cfg(feature = "surrealdb")]
-pub extern crate surrealdb;
-pub extern crate yaufs_proto;
+use yaufs_common::net::packet::LoginStartSpec;
+use yaufs_common::protocol::State;
+use yaufs_common::types::{CountedArray, VarInt};
 
-#[cfg(feature = "net")]
-pub use mcproto_rs::*;
+#[derive(Debug, Getters, Setters)]
+#[get = "pub"]
+#[set = "pub"]
+pub struct ProxyConnection {
+    state: State,
+    client_verify_token: Option<CountedArray<u8, VarInt>>,
+    login: Option<LoginStartSpec>,
+}
 
-pub mod database;
-pub mod error;
-#[cfg(feature = "fluvio")]
-pub mod fluvio_util;
-#[cfg(feature = "net")]
-pub mod net;
-pub mod oidc;
-pub mod telemetry;
-pub mod tonic;
-pub mod tower;
-
-mod util;
+impl Default for ProxyConnection {
+    fn default() -> Self {
+        Self {
+            state: State::Handshaking,
+            client_verify_token: None,
+            login: None,
+        }
+    }
+}

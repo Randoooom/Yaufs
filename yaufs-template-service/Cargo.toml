@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-yaufs-common = { path = "../yaufs-common", features = ["surrealdb", "fluvio"], default-features = false }
+yaufs-common = { path = "../yaufs-common", features = ["surrealdb", "fluvio", "open-telemetry"], default-features = false }
 
 surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", rev = "5eafebd" }
 

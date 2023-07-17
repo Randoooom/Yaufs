@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-yaufs-common = { path = "../yaufs-common", features = ["skytable", "fluvio", "schemars"], default-features = false }
+yaufs-common = { path = "../yaufs-common", features = ["skytable", "fluvio", "schemars", "open-telemetry"], default-features = false }
 
 tokio = { version = "1.23.0", features = ["full"] }
 serde = { version = "1.0.152", features = ["derive"] }

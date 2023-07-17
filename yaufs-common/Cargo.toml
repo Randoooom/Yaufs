@@ -19,6 +19,11 @@ generic-array = { version = "0.14.6", optional = true }
 fluvio = { version = "0.17.0", features = ["rustls"], default-features = false, optional = true }
 schemars = { version = "0.8.12", optional = true }
 
+bytes = { version = "1.4.0", optional = true }
+integer-encoding = { version = "3.0.4", optional = true }
+craftio-rs = { version = "0.1.0", optional = true }
+mcproto-rs = { version = "0.2.0", optional = true }
+
 serde_json = "1.0.93"
 hyper = "0.14.23"
 tower = "0.4.13"
@@ -35,9 +40,11 @@ cached = "0.42.0"
 openidconnect = "3.0.0"
 
 [features]
-default = ["surrealdb", "skytable", "fluvio", "schemars"]
+default = ["surrealdb", "skytable", "fluvio", "schemars", "open-telemetry", "net"]
 testing = []
 
+net = ["dep:bytes", "dep:integer-encoding", "dep:craftio-rs", "dep:mcproto-rs"]
+open-telemetry = []
 schemars = ["dep:schemars"]
 surrealdb = ["dep:surrealdb"]
 skytable = ["dep:skytable", "dep:generic-array"]

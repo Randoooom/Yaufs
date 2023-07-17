@@ -14,33 +14,19 @@
  *    limitations under the License.
  */
 
-#[cfg(feature = "net")]
-extern crate alloc;
-extern crate core;
-#[cfg(feature = "net")]
-pub extern crate craftio_rs;
-#[cfg(feature = "fluvio")]
-pub extern crate fluvio;
-#[cfg(feature = "net")]
-pub extern crate mcproto_rs;
-#[cfg(feature = "skytable")]
-pub extern crate skytable;
-#[cfg(feature = "surrealdb")]
-pub extern crate surrealdb;
-pub extern crate yaufs_proto;
+use kanal::AsyncSender;
+use yaufs_common::net::packet::Packet762;
 
-#[cfg(feature = "net")]
-pub use mcproto_rs::*;
+mod client;
+mod server;
 
-pub mod database;
-pub mod error;
-#[cfg(feature = "fluvio")]
-pub mod fluvio_util;
-#[cfg(feature = "net")]
-pub mod net;
-pub mod oidc;
-pub mod telemetry;
-pub mod tonic;
-pub mod tower;
+#[async_trait]
+pub trait PacketInterceptor {
+    async fn on_receive(
+        &mut self,
+        packet: Packet762,
+        sender: AsyncSender<Packet762>,
+    ) -> anyhow::Result<()>;
 
-mod util;
+    async fn on_send(&mut self, mut packet: Packet762) -> anyhow::Result<()>;
+}
